@@ -13,20 +13,17 @@ interface MeetupCardProps {
 
 const tierConfig = {
   gold: {
-    color: 'bg-gradient-to-br from-yellow-400 to-yellow-600',
-    icon: '🏆',
+    color: 'bg-amber-50 border-amber-200',
     label: 'Gold',
-    textColor: 'text-yellow-600'
+    textColor: 'text-amber-700'
   },
   silver: {
-    color: 'bg-gradient-to-br from-gray-300 to-gray-500',
-    icon: '🥈',
+    color: 'bg-slate-50 border-slate-200',
     label: 'Silver',
-    textColor: 'text-gray-600'
+    textColor: 'text-slate-600'
   },
   bronze: {
-    color: 'bg-gradient-to-br from-orange-400 to-orange-600',
-    icon: '🥉',
+    color: 'bg-orange-50 border-orange-200',
     label: 'Bronze',
     textColor: 'text-orange-600'
   }
@@ -37,18 +34,18 @@ export function MeetupCard({ name, region, description, members, tier, category,
 
   return (
     <div
-      className="bg-card rounded-2xl overflow-hidden shadow-sm border border-border hover:shadow-md transition-shadow cursor-pointer"
+      className="bg-card rounded-2xl overflow-hidden shadow-sm shadow-slate-200/40 border border-border hover:border-primary/30 hover:shadow-md transition-all cursor-pointer"
       onClick={onScheduleClick}
     >
       <div className="relative">
-        <div className="h-36 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/10 relative overflow-hidden">
+        <div className="h-36 bg-accent relative overflow-hidden">
           {imageUrl && (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/40"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent"></div>
           )}
         </div>
 
-        <div className={`absolute top-3 right-3 ${tierInfo.color} w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
-          <span className="text-xl">{tierInfo.icon}</span>
+        <div className={`absolute top-3 right-3 ${tierInfo.color} px-2.5 py-1 rounded-full flex items-center justify-center border`}>
+          <span className={`text-xs font-medium ${tierInfo.textColor}`}>{tierInfo.label}</span>
         </div>
 
         <div className="absolute top-3 left-3 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
@@ -75,9 +72,9 @@ export function MeetupCard({ name, region, description, members, tier, category,
             <Users className="w-4 h-4" />
             <span>{members}명</span>
           </div>
-          <div className={`flex items-center gap-1 text-xs ${tierInfo.textColor}`}>
+          <div className="flex items-center gap-1 text-xs text-primary">
             <Award className="w-4 h-4" />
-            <span>{tierInfo.label}</span>
+            <span>활발한 모임</span>
           </div>
         </div>
       </div>

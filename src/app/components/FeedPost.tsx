@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Share2, MoreVertical } from 'lucide-react';
+import { Heart, Image as ImageIcon, MessageCircle, Share2, MoreVertical } from 'lucide-react';
 import { useState } from 'react';
 
 interface FeedPostProps {
@@ -37,11 +37,11 @@ export function FeedPost({
   };
 
   return (
-    <div className="bg-card border-2 border-border rounded-2xl overflow-hidden">
+    <article className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm shadow-slate-200/40">
       {/* Author Header */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-secondary border-2 border-border flex items-center justify-center text-xl flex-shrink-0">
+          <div className="w-10 h-10 rounded-full bg-accent border border-primary/10 flex items-center justify-center text-xl flex-shrink-0">
             {authorAvatar}
           </div>
           <div>
@@ -61,10 +61,10 @@ export function FeedPost({
 
       {/* Images */}
       {images && images.length > 0 && (
-        <div className="border-y-2 border-border">
+        <div className="border-y border-border">
           {images.length === 1 ? (
             <div className="w-full h-64 bg-secondary flex items-center justify-center">
-              <span className="text-muted-foreground text-sm">📷 이미지</span>
+              <span className="flex items-center gap-2 text-muted-foreground text-sm"><ImageIcon className="w-4 h-4" /> 이미지</span>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-0.5">
@@ -73,7 +73,7 @@ export function FeedPost({
                   key={index}
                   className="aspect-square bg-secondary flex items-center justify-center"
                 >
-                  <span className="text-muted-foreground text-sm">📷</span>
+                  <ImageIcon className="w-5 h-5 text-muted-foreground" />
                 </div>
               ))}
             </div>
@@ -110,6 +110,6 @@ export function FeedPost({
           </button>
         )}
       </div>
-    </div>
+    </article>
   );
 }

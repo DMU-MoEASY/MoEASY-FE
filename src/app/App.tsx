@@ -1,5 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { MapPage } from './components/MapPage';
+import { HomeExperience } from './components/HomeExperience';
+import { ExploreExperience } from './components/ExploreExperience';
+import { MeetupDetailExperience } from './components/MeetupDetailExperience';
+import { ScheduleExperience } from './components/ScheduleExperience';
+import { ProfileExperience } from './components/ProfileExperience';
+import {
+  SignupExperience,
+  NotificationsExperience,
+  MessagesExperience,
+  GalleryExperience,
+  RequestsExperience,
+  CreateMeetupExperience,
+  ChatExperience,
+  FinanceExperience,
+  MembersExperience,
+  ReceiptExperience,
+  SchedulerExperience,
+} from './components/SecondaryExperiences';
 import { SearchBar } from './components/SearchBar';
 import { MeetupCard } from './components/MeetupCard';
 import { ActiveMeetupCard } from './components/ActiveMeetupCard';
@@ -295,6 +315,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [myMeetups, setMyMeetups] = useState(meetups);
+  const [exploreMeetups, setExploreMeetups] = useState(discoverMeetups);
   const [showScheduler, setShowScheduler] = useState(false);
   const [showMeetupDetail, setShowMeetupDetail] = useState(false);
   const [showReceiptScanner, setShowReceiptScanner] = useState(false);
@@ -315,11 +337,15 @@ export default function App() {
   const [detailTab, setDetailTab] = useState('홈');
   const [financeTab, setFinanceTab] = useState('입출금 내역');
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeTab]);
+
   // Show login/signup screens if not logged in
   if (!isLoggedIn) {
     if (showSignup) {
       return (
-        <SignupPage
+        <SignupExperience
           onSignup={() => {
             setIsLoggedIn(true);
             setShowSignup(false);
@@ -338,14 +364,14 @@ export default function App() {
   }
 
   if (showNotifications) {
-    return <NotificationCenter onBack={() => setShowNotifications(false)} />;
+    return <NotificationsExperience onBack={() => setShowNotifications(false)} />;
   }
 
   if (showDMList) {
     return (
-      <DMListPage
+      <MessagesExperience
         onBack={() => setShowDMList(false)}
-        onChatClick={(chatId) => {
+        onChat={() => {
           setShowDMList(false);
           setShowMeetupDetail(true);
           setShowGroupChat(true);
@@ -356,33 +382,56 @@ export default function App() {
 
   if (showPhotoGallery) {
     return (
-      <PhotoGalleryPage
+      <GalleryExperience
         onBack={() => {
           setShowPhotoGallery(false);
           setShowMeetupDetail(true);
         }}
-        meetupName={selectedMeetup.name}
+        name={selectedMeetup.name}
       />
     );
   }
 
   if (showJoinRequests) {
     return (
-      <JoinRequestsPage
+      <RequestsExperience
         onBack={() => {
           setShowJoinRequests(false);
           setShowMeetupDetail(true);
         }}
-        meetupName={selectedMeetup.name}
+        name={selectedMeetup.name}
       />
     );
   }
 
   if (showCreateMeetup) {
-    return <CreateMeetupPage onBack={() => setShowCreateMeetup(false)} />;
+    return <CreateMeetupExperience onBack={() => setShowCreateMeetup(false)} onCreate={(values) => {
+      const createdMeetup = {
+        id: Date.now(),
+        name: values.name,
+        region: values.region,
+        description: values.description,
+        members: 1,
+        tier: 'bronze' as const,
+        category: values.category,
+        imageUrl: '/meetup-new.jpg',
+      };
+      setMyMeetups(current => [createdMeetup, ...current]);
+      setExploreMeetups(current => [createdMeetup, ...current]);
+      setSelectedMeetup(createdMeetup);
+      setShowCreateMeetup(false);
+      setActiveTab('home');
+    }} />;
   }
 
   if (showGroupChat) {
+    return <ChatExperience onBack={() => {
+      setShowGroupChat(false);
+      setShowMeetupDetail(true);
+    }} />;
+  }
+
+  if (false && showGroupChat) {
     return (
       <div className="size-full bg-background flex flex-col">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -416,6 +465,19 @@ export default function App() {
   }
 
   if (showFinanceManagement) {
+    return <FinanceExperience
+      onBack={() => {
+        setShowFinanceManagement(false);
+        setShowMeetupDetail(true);
+      }}
+      onReceipt={() => {
+        setShowFinanceManagement(false);
+        setShowReceiptScanner(true);
+      }}
+    />;
+  }
+
+  if (false && showFinanceManagement) {
     return (
       <div className="size-full bg-background overflow-y-auto">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -500,6 +562,13 @@ export default function App() {
   }
 
   if (showMemberManagement) {
+    return <MembersExperience onBack={() => {
+      setShowMemberManagement(false);
+      setShowMeetupDetail(true);
+    }} />;
+  }
+
+  if (false && showMemberManagement) {
     return (
       <div className="size-full bg-background flex flex-col">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -527,6 +596,13 @@ export default function App() {
   }
 
   if (showReceiptScanner) {
+    return <ReceiptExperience onBack={() => {
+      setShowReceiptScanner(false);
+      setShowFinanceManagement(true);
+    }} />;
+  }
+
+  if (false && showReceiptScanner) {
     return (
       <div className="size-full bg-background overflow-y-auto">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -573,6 +649,48 @@ export default function App() {
   }
 
   if (showMeetupDetail) {
+    return (
+      <MeetupDetailExperience
+        meetup={selectedMeetup}
+        activeTab={detailTab}
+        onTabChange={setDetailTab}
+        onBack={() => {
+          setShowMeetupDetail(false);
+          setDetailTab('홈');
+        }}
+        onChat={() => {
+          setShowMeetupDetail(false);
+          setShowGroupChat(true);
+        }}
+        onSchedule={() => {
+          setShowMeetupDetail(false);
+          setShowScheduler(true);
+        }}
+        onGallery={() => {
+          setShowMeetupDetail(false);
+          setShowPhotoGallery(true);
+        }}
+        onMembers={() => {
+          setShowMeetupDetail(false);
+          setShowMemberManagement(true);
+        }}
+        onFinance={() => {
+          setShowMeetupDetail(false);
+          setShowFinanceManagement(true);
+        }}
+        onRequests={() => {
+          setShowMeetupDetail(false);
+          setShowJoinRequests(true);
+        }}
+        onReceipt={() => {
+          setShowMeetupDetail(false);
+          setShowReceiptScanner(true);
+        }}
+      />
+    );
+  }
+
+  if (false && showMeetupDetail) {
     return (
       <div className="size-full bg-background overflow-y-auto">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -939,6 +1057,13 @@ export default function App() {
   }
 
   if (showScheduler) {
+    return <SchedulerExperience onBack={() => {
+      setShowScheduler(false);
+      setShowMeetupDetail(true);
+    }} />;
+  }
+
+  if (false && showScheduler) {
     return (
       <div className="size-full bg-background overflow-y-auto">
         <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-40">
@@ -1005,23 +1130,53 @@ export default function App() {
   }
 
   return (
-    <div className="size-full bg-background overflow-y-auto">
-      <Header
-        onNotificationClick={() => setShowNotifications(true)}
-        onDMClick={() => setShowDMList(true)}
-      />
+    <div className="size-full min-h-screen bg-background overflow-y-auto">
+      <div className="hidden lg:block">
+        <Sidebar currentPage={activeTab} onNavigate={setActiveTab} />
+      </div>
 
-      <main className="max-w-md mx-auto px-4 pt-20 pb-24">
+      <div className="lg:pl-[272px]">
+        <Header
+          onNotificationClick={() => setShowNotifications(true)}
+          onDMClick={() => setShowDMList(true)}
+        />
+
+      <main className="max-w-md lg:max-w-[1440px] mx-auto px-4 lg:px-8 pt-24 lg:pt-28 pb-28 lg:pb-16">
         <div className="space-y-4">
           {activeTab === 'home' && (
+            <HomeExperience
+              meetups={myMeetups}
+              onCreate={() => setShowCreateMeetup(true)}
+              onOpenMap={() => setActiveTab('map')}
+              onSelect={(item) => {
+                const meetup = myMeetups.find(candidate => candidate.id === item.id);
+                if (meetup) {
+                  setSelectedMeetup(meetup);
+                  setDetailTab('홈');
+                  setShowMeetupDetail(true);
+                }
+              }}
+            />
+          )}
+
+          {activeTab === '__legacy_home' && (
             <>
               {/* Active Meetups - Horizontal Scroll */}
               <section>
-                <div className="mb-3">
-                  <h2>활동 중인 모임</h2>
+                <div className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-primary font-medium mb-1">좋은 아침이에요 👋</p>
+                    <h2 className="text-2xl font-semibold tracking-tight">오늘도 모임을 가볍게 시작해요</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowCreateMeetup(true)}
+                    className="hidden lg:block text-sm bg-primary text-primary-foreground px-4 py-2.5 rounded-xl hover:opacity-90 transition-opacity"
+                  >
+                    새 모임 만들기
+                  </button>
                 </div>
-                <div className="-mx-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-                  <div className="flex gap-3" style={{ paddingLeft: 'calc((100vw - 16rem) / 2)', paddingRight: 'calc((100vw - 16rem) / 2)' }}>
+                <div className="-mx-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory lg:mx-0 lg:overflow-visible">
+                  <div className="flex gap-3 px-4 lg:px-0 lg:grid lg:grid-cols-3">
                     {meetups.map((meetup, index) => (
                       <button
                         key={meetup.id}
@@ -1029,19 +1184,13 @@ export default function App() {
                           setSelectedMeetup(meetup);
                           setShowMeetupDetail(true);
                         }}
-                        className="flex-shrink-0 w-64 snap-center"
+                        className="flex-shrink-0 w-64 snap-center text-left lg:w-auto"
                       >
                         <ActiveMeetupCard
                           name={meetup.name}
                           region={meetup.region}
                           members={meetup.members}
-                          color={
-                            index % 3 === 0
-                              ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'
-                              : index % 3 === 1
-                              ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white'
-                              : 'bg-gradient-to-br from-green-500 to-green-600 text-white'
-                          }
+                          color="bg-primary text-white"
                         />
                       </button>
                     ))}
@@ -1050,11 +1199,15 @@ export default function App() {
               </section>
 
               {/* Feed Posts - Vertical Scroll */}
-              <section>
-                <div className="mb-3">
-                  <h2>최근 게시글</h2>
+              <section className="lg:max-w-3xl lg:mt-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">커뮤니티</p>
+                    <h2>최근 게시글</h2>
+                  </div>
+                  <button className="text-sm text-primary">전체보기</button>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <FeedPost
                     id={1}
                     author="김철수"
@@ -1114,6 +1267,19 @@ export default function App() {
           )}
 
           {activeTab === 'search' && (
+            <ExploreExperience
+              meetups={exploreMeetups}
+              onSelect={(item) => {
+                const meetup = exploreMeetups.find(candidate => candidate.id === item.id);
+                if (meetup) {
+                  setJoinTargetMeetup(meetup);
+                  setShowJoinModal(true);
+                }
+              }}
+            />
+          )}
+
+          {activeTab === '__legacy_search' && (
             <>
               <SearchBar />
 
@@ -1127,10 +1293,10 @@ export default function App() {
                     + 모임 만들기
                   </button>
                 </div>
-                <div className="-mx-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-                  <div className="flex">
+                <div className="-mx-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory lg:mx-0 lg:overflow-visible">
+                  <div className="flex lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4">
                     {discoverMeetups.map((meetup) => (
-                      <div key={meetup.id} className="flex-shrink-0 w-full px-4 snap-center">
+                      <div key={meetup.id} className="flex-shrink-0 w-full px-4 snap-center lg:px-0">
                         <MeetupCard
                           {...meetup}
                           onScheduleClick={() => {
@@ -1158,6 +1324,18 @@ export default function App() {
             </>
           )}
 
+          <JoinMeetupModal
+            isOpen={showJoinModal}
+            onClose={() => setShowJoinModal(false)}
+            meetupName={joinTargetMeetup.name}
+            meetupRegion={joinTargetMeetup.region}
+            members={joinTargetMeetup.members}
+            onSubmit={(greeting) => {
+              alert(`${joinTargetMeetup.name} 가입 신청이 완료되었습니다!\n\n가입 인사:\n${greeting}`);
+              setShowJoinModal(false);
+            }}
+          />
+
           <ReviewModal
             isOpen={showReviewModal}
             onClose={() => setShowReviewModal(false)}
@@ -1171,7 +1349,11 @@ export default function App() {
             }}
           />
 
-          {activeTab === 'schedule' && (
+          {activeTab === 'map' && <MapPage />}
+
+          {activeTab === 'schedule' && <ScheduleExperience onOpenMap={() => setActiveTab('map')} />}
+
+          {activeTab === '__legacy_schedule' && (
             <section className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="w-6 h-6 text-primary" />
@@ -1327,6 +1509,24 @@ export default function App() {
           )}
 
           {activeTab === 'profile' && (
+            <ProfileExperience
+              meetups={myMeetups}
+              onSelectMeetup={(item) => {
+                const meetup = myMeetups.find(candidate => candidate.id === item.id);
+                if (meetup) {
+                  setSelectedMeetup(meetup);
+                  setDetailTab('홈');
+                  setShowMeetupDetail(true);
+                }
+              }}
+              onLogout={() => {
+                setIsLoggedIn(false);
+                setActiveTab('home');
+              }}
+            />
+          )}
+
+          {activeTab === '__legacy_profile' && (
             <div className="-mx-4 -mt-4">
               <ProfileHeader
                 name="김모이지"
@@ -1413,6 +1613,7 @@ export default function App() {
       </main>
 
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
     </div>
   );
 }

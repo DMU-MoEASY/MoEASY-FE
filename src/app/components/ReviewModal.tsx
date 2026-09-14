@@ -35,20 +35,20 @@ export function ReviewModal({
     <>
       {/* Backdrop Overlay */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-[60] flex items-end justify-center bg-[#101828]/70 p-3 backdrop-blur-sm sm:items-center sm:p-4"
         onClick={onClose}
       >
         {/* Modal */}
         <div
-          className="max-w-sm w-full bg-card rounded-3xl shadow-2xl p-6 animate-scale-in"
+          className="max-h-[calc(100vh-24px)] w-full max-w-md animate-scale-in overflow-y-auto rounded-[28px] bg-card p-6 shadow-2xl sm:p-8"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg">후기 작성</h3>
+            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Meetup review</p><h3 className="mt-1 text-2xl font-semibold">후기 작성</h3></div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-secondary rounded-xl transition-colors"
+              className="rounded-full p-2 hover:bg-secondary transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -73,7 +73,7 @@ export function ReviewModal({
                   className="transition-transform active:scale-90 hover:scale-110"
                 >
                   <Star
-                    className={`w-12 h-12 transition-colors ${
+                    className={`h-10 w-10 transition-colors sm:h-12 sm:w-12 ${
                       star <= (hoveredRating || rating)
                         ? 'fill-yellow-400 text-yellow-400'
                         : 'text-border'
@@ -115,7 +115,7 @@ export function ReviewModal({
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="오늘 모임에 대한 짧은 소감을 남겨주세요"
                 rows={4}
-                className="w-full px-4 py-3 bg-input-background border-2 border-border rounded-2xl focus:outline-none focus:border-primary transition-colors resize-none text-sm"
+                className="w-full resize-none rounded-xl bg-secondary px-4 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:bg-white focus:ring-primary/40"
               />
               <p className="text-xs text-muted-foreground mt-2">
                 {comment.length}/200자
@@ -126,13 +126,13 @@ export function ReviewModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 bg-secondary text-foreground border-2 border-border rounded-2xl transition-transform active:scale-95"
+                className="flex-1 rounded-xl bg-secondary py-3 text-foreground transition-transform active:scale-95"
               >
                 취소
               </button>
               <button
                 onClick={handleSubmit}
-                className="flex-1 py-3 bg-primary text-primary-foreground rounded-2xl transition-transform active:scale-95 shadow-lg"
+                className="flex-1 rounded-xl bg-primary py-3 text-primary-foreground shadow-lg transition-transform active:scale-95"
               >
                 등록
               </button>

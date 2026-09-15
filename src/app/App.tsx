@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePersistentState } from './hooks/usePersistentState';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MapPage } from './components/MapPage';
@@ -311,14 +312,28 @@ const duesRequests = [
   },
 ];
 
+const tabPaths: Record<string, string> = {
+  home: '/',
+  search: '/explore',
+  map: '/map',
+  schedule: '/schedule',
+  profile: '/profile',
+};
+
+const pathTabs: Record<string, string> = Object.fromEntries(
+  Object.entries(tabPaths).map(([tab, path]) => [path, tab]),
+);
+
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)/)?.[1]);
+  const [isLoggedIn, setIsLoggedIn] = usePersistentState('moeasy:isLoggedIn', false);
   const [showSignup, setShowSignup] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
-  const [myMeetups, setMyMeetups] = useState(meetups);
-  const [exploreMeetups, setExploreMeetups] = useState(discoverMeetups);
+  const [activeTab, setActiveTab] = useState(pathTabs[pathname] ?? 'home');
+  const [myMeetups, setMyMeetups] = usePersistentState('moeasy:myMeetups', meetups);
+  const [exploreMeetups, setExploreMeetups] = usePersistentState('moeasy:exploreMeetups', discoverMeetups);
   const [showScheduler, setShowScheduler] = useState(false);
-  const [showMeetupDetail, setShowMeetupDetail] = useState(false);
+  const [showMeetupDetail, setShowMeetupDetail] = useState(Boolean(initialMeetupId));
   const [showReceiptScanner, setShowReceiptScanner] = useState(false);
   const [showMemberManagement, setShowMemberManagement] = useState(false);
   const [showFinanceManagement, setShowFinanceManagement] = useState(false);
@@ -330,16 +345,60 @@ export default function App() {
   const [showDMList, setShowDMList] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedMeetup, setSelectedMeetup] = useState(meetups[0]);
+  const [selectedMeetup, setSelectedMeetup] = useState(
+    () => [...myMeetups, ...exploreMeetups].find(item => item.id === initialMeetupId) ?? myMeetups[0] ?? meetups[0],
+  );
   const [joinTargetMeetup, setJoinTargetMeetup] = useState(discoverMeetups[0]);
   const [reviewTargetEvent, setReviewTargetEvent] = useState({ title: '', id: '' });
-  const [eventReviews, setEventReviews] = useState<Record<string, { rating: number; comment: string }>>({});
+  const [eventReviews, setEventReviews] = usePersistentState<Record<string, { rating: number; comment: string }>>('moeasy:eventReviews', {});
   const [detailTab, setDetailTab] = useState('홈');
   const [financeTab, setFinanceTab] = useState('입출금 내역');
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeTab]);
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    const meetupId = Number(pathname.match(/^\/meetups\/(\d+)/)?.[1]);
+    if (meetupId) {
+      const meetup = [...myMeetups, ...exploreMeetups].find(item => item.id === meetupId);
+      if (meetup) {
+        setSelectedMeetup(meetup);
+        setShowMeetupDetail(true);
+      }
+      return;
+    }
+
+    const nextTab = pathTabs[pathname];
+    if (nextTab) {
+      setActiveTab(nextTab);
+      setShowMeetupDetail(false);
+    }
+  }, [pathname, myMeetups, exploreMeetups]);
+
+  const changePath = (path: string) => {
+    if (window.location.pathname !== path) window.history.pushState({}, '', path);
+    setPathname(path);
+  };
+
+  const navigateToTab = (tab: string) => {
+    setActiveTab(tab);
+    setShowMeetupDetail(false);
+    changePath(tabPaths[tab] ?? '/');
+  };
+
+  const openMeetup = (meetup: typeof meetups[number]) => {
+    setSelectedMeetup(meetup);
+    setDetailTab('홈');
+    setShowMeetupDetail(true);
+    changePath(`/meetups/${meetup.id}`);
+  };
 
   // Show login/signup screens if not logged in
   if (!isLoggedIn) {
@@ -420,7 +479,7 @@ export default function App() {
       setExploreMeetups(current => [createdMeetup, ...current]);
       setSelectedMeetup(createdMeetup);
       setShowCreateMeetup(false);
-      setActiveTab('home');
+      navigateToTab('home');
     }} />;
   }
 
@@ -651,12 +710,14 @@ export default function App() {
   if (showMeetupDetail) {
     return (
       <MeetupDetailExperience
+        key={selectedMeetup.id}
         meetup={selectedMeetup}
         activeTab={detailTab}
         onTabChange={setDetailTab}
         onBack={() => {
           setShowMeetupDetail(false);
           setDetailTab('홈');
+          changePath(tabPaths[activeTab] ?? '/');
         }}
         onChat={() => {
           setShowMeetupDetail(false);
@@ -1132,7 +1193,7 @@ export default function App() {
   return (
     <div className="size-full min-h-screen bg-background overflow-y-auto">
       <div className="hidden lg:block">
-        <Sidebar currentPage={activeTab} onNavigate={setActiveTab} />
+        <Sidebar currentPage={activeTab} onNavigate={navigateToTab} />
       </div>
 
       <div className="lg:pl-[272px]">
@@ -1147,13 +1208,11 @@ export default function App() {
             <HomeExperience
               meetups={myMeetups}
               onCreate={() => setShowCreateMeetup(true)}
-              onOpenMap={() => setActiveTab('map')}
+              onOpenMap={() => navigateToTab('map')}
               onSelect={(item) => {
                 const meetup = myMeetups.find(candidate => candidate.id === item.id);
                 if (meetup) {
-                  setSelectedMeetup(meetup);
-                  setDetailTab('홈');
-                  setShowMeetupDetail(true);
+                  openMeetup(meetup);
                 }
               }}
             />
@@ -1351,7 +1410,7 @@ export default function App() {
 
           {activeTab === 'map' && <MapPage />}
 
-          {activeTab === 'schedule' && <ScheduleExperience onOpenMap={() => setActiveTab('map')} />}
+          {activeTab === 'schedule' && <ScheduleExperience onOpenMap={() => navigateToTab('map')} />}
 
           {activeTab === '__legacy_schedule' && (
             <section className="space-y-4">
@@ -1514,14 +1573,12 @@ export default function App() {
               onSelectMeetup={(item) => {
                 const meetup = myMeetups.find(candidate => candidate.id === item.id);
                 if (meetup) {
-                  setSelectedMeetup(meetup);
-                  setDetailTab('홈');
-                  setShowMeetupDetail(true);
+                  openMeetup(meetup);
                 }
               }}
               onLogout={() => {
                 setIsLoggedIn(false);
-                setActiveTab('home');
+                navigateToTab('home');
               }}
             />
           )}
@@ -1612,7 +1669,7 @@ export default function App() {
         </div>
       </main>
 
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav activeTab={activeTab} onTabChange={navigateToTab} />
       </div>
     </div>
   );

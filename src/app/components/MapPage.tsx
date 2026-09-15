@@ -32,12 +32,14 @@ export function MapPage() {
   const mapElement = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markers = useRef<any[]>([]);
+  const userMarker = useRef<any>(null);
   const [mode, setMode] = useState<MapMode>('nearby');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MapItem[]>([]);
   const [selectedId, setSelectedId] = useState(nearbyMeetups[0].id);
   const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   const modeItems = useMemo(() => mode === 'nearby' ? nearbyMeetups : scheduledMeetups, [mode]);
   const items = searchResults.length > 0 ? searchResults : modeItems;
@@ -143,11 +145,34 @@ export function MapPage() {
   };
 
   const moveToCurrentLocation = () => {
-    navigator.geolocation?.getCurrentPosition(({ coords }) => {
+    if (!navigator.geolocation) {
+      setLocationStatus('error');
+      return;
+    }
+    setLocationStatus('loading');
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
       const position = { lat: coords.latitude, lng: coords.longitude };
       mapInstance.current?.panTo(position);
       mapInstance.current?.setZoom(14);
-    });
+      if (window.google?.maps && mapInstance.current) {
+        userMarker.current?.setMap(null);
+        userMarker.current = new window.google.maps.Marker({
+          map: mapInstance.current,
+          position,
+          title: '내 현재 위치',
+          zIndex: 999,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#315EFB',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 4,
+          },
+        });
+      }
+      setLocationStatus('ready');
+    }, () => setLocationStatus('error'), { enableHighAccuracy: true, timeout: 10000 });
   };
 
   return (
@@ -158,8 +183,8 @@ export function MapPage() {
           <h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">도시에서 만날<br className="sm:hidden" /> 새로운 사람들</h1>
           <p className="mt-3 text-sm text-muted-foreground">Google 지도 위에 MoEasy 모임과 Kakao 장소 검색 결과를 함께 보여드려요.</p>
         </div>
-        <button onClick={moveToCurrentLocation} className="flex self-start items-center gap-2 rounded-full bg-[#101828] px-4 py-2.5 text-sm text-white transition-colors hover:bg-primary sm:self-auto">
-          <LocateFixed className="h-4 w-4 text-[#8FAAFF]" />현재 위치
+        <button onClick={moveToCurrentLocation} disabled={locationStatus === 'loading'} className="flex self-start items-center gap-2 rounded-full bg-[#101828] px-4 py-2.5 text-sm text-white transition-colors hover:bg-primary disabled:opacity-60 sm:self-auto">
+          <LocateFixed className="h-4 w-4 text-[#8FAAFF]" />{locationStatus === 'loading' ? '위치 확인 중' : locationStatus === 'ready' ? '현재 위치 표시됨' : '현재 위치'}
         </button>
       </div>
 
@@ -184,6 +209,7 @@ export function MapPage() {
             {mapStatus === 'ready' ? 'GOOGLE MAPS · LIVE' : '지도 키 연결 대기'}
           </div>
           {searchStatus === 'error' && <div className="absolute left-4 right-4 top-16 z-20 rounded-xl bg-white p-3 text-sm shadow-lg">Kakao 장소 검색을 사용할 수 없습니다. JavaScript 키와 등록 도메인을 확인해주세요.</div>}
+          {locationStatus === 'error' && <div className="absolute bottom-4 left-4 right-4 z-30 rounded-xl bg-white p-3 text-sm text-rose-700 shadow-lg lg:right-auto">위치 권한을 허용하면 현재 위치를 지도에서 확인할 수 있어요.</div>}
           <div className="absolute bottom-3 left-3 right-3 z-30 lg:hidden"><LocationCard item={selected} compact /></div>
         </div>
 

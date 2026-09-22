@@ -56,7 +56,16 @@ import { DMListPage } from './components/DMListPage';
 import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
-import { completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
+import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
+import {
+  AUTH_SESSION_KEY,
+  createDemoAuthSession,
+  createSocialAuthSession,
+  getInitialAuthSession,
+  removeLegacyLoginState,
+  type AuthSession,
+} from './services/authSession';
+import { isApiMode } from './config/runtime';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
 type Meetup = {
@@ -341,7 +350,8 @@ export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const oauthHandledPath = useRef<string | null>(null);
   const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
-  const [isLoggedIn, setIsLoggedIn] = usePersistentState('moeasy:isLoggedIn', false);
+  const [authSession, setAuthSession] = usePersistentState<AuthSession | null>(AUTH_SESSION_KEY, getInitialAuthSession());
+  const isLoggedIn = authSession !== null;
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState(pathTabs[pathname] ?? 'home');
@@ -380,6 +390,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    removeLegacyLoginState();
+  }, []);
+
+  useEffect(() => {
     const provider = getOAuthProviderFromPath(pathname);
     const callbackKey = `${pathname}${window.location.search}`;
     if (!provider || oauthHandledPath.current === callbackKey) return;
@@ -387,8 +401,8 @@ export default function App() {
     oauthHandledPath.current = callbackKey;
     setOauthCallback({ status: 'loading' });
     void completeSocialLogin(provider, window.location.search)
-      .then(() => {
-        setIsLoggedIn(true);
+      .then((result) => {
+        setAuthSession(createSocialAuthSession(provider, result));
         window.history.replaceState({}, '', '/');
         setPathname('/');
       })
@@ -398,7 +412,7 @@ export default function App() {
           message: error instanceof Error ? error.message : '소셜 로그인을 완료하지 못했습니다.',
         });
       });
-  }, [pathname, setIsLoggedIn]);
+  }, [pathname, setAuthSession]);
 
   useEffect(() => {
     const meetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
@@ -475,17 +489,19 @@ export default function App() {
       return (
         <SignupExperience
           onSignup={() => {
-            setIsLoggedIn(true);
+            setAuthSession(createDemoAuthSession());
             setShowSignup(false);
           }}
           onBack={() => setShowSignup(false)}
+          apiMode={isApiMode}
+          onSocialSignup={beginSocialLogin}
         />
       );
     }
 
     return (
       <LoginPage
-        onLogin={() => setIsLoggedIn(true)}
+        onLogin={() => setAuthSession(createDemoAuthSession())}
         onSignupClick={() => setShowSignup(true)}
       />
     );
@@ -1656,7 +1672,7 @@ export default function App() {
                 }
               }}
               onLogout={() => {
-                setIsLoggedIn(false);
+                setAuthSession(null);
                 navigateToTab('home');
               }}
             />
@@ -1733,7 +1749,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (confirm('로그아웃 하시겠습니까?')) {
-                        setIsLoggedIn(false);
+                        setAuthSession(null);
                         setActiveTab('home');
                       }
                     }}

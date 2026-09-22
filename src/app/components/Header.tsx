@@ -12,10 +12,16 @@ export function Header({ onNotificationClick, onDMClick }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 lg:left-[272px] bg-background/85 backdrop-blur-xl z-40">
       <div className="max-w-[1440px] mx-auto px-4 lg:px-8 h-[72px] flex items-center justify-between">
+        <img
+          src="/brand/moeasy-logo.png"
+          alt="MoEasy"
+          className="h-8 w-auto max-w-[116px] object-contain lg:hidden"
+        />
+
         {/* Location */}
         <button
           onClick={() => alert('위치 변경')}
-          className="flex items-center gap-2 hover:bg-card px-2 py-1.5 rounded-xl transition-colors"
+          className="hidden items-center gap-2 hover:bg-card px-2 py-1.5 rounded-xl transition-colors sm:flex"
         >
           <div className="text-left">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">My neighborhood</p>

@@ -1,0 +1,22 @@
+<svg width="960" height="400" viewBox="0 0 960 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="400" rx="32" fill="#F4F7FB"/>
+  <text x="48" y="58" fill="#101828" font-family="Inter, Pretendard, Arial, sans-serif" font-size="24" font-weight="750">MoEasy app icon · size test</text>
+  <text x="48" y="88" fill="#667085" font-family="Inter, Pretendard, Arial, sans-serif" font-size="14">같은 심볼을 실제 사용 크기로 비교합니다.</text>
+
+  <g transform="translate(48 126)">
+    <image href="./moeasy-app-icon.svg" width="224" height="224"/>
+    <text x="112" y="252" text-anchor="middle" fill="#475467" font-family="Inter, Arial, sans-serif" font-size="14">224 px</text>
+  </g>
+  <g transform="translate(340 190)">
+    <image href="./moeasy-app-icon.svg" width="128" height="128"/>
+    <text x="64" y="156" text-anchor="middle" fill="#475467" font-family="Inter, Arial, sans-serif" font-size="14">128 px</text>
+  </g>
+  <g transform="translate(548 222)">
+    <image href="./moeasy-app-icon.svg" width="64" height="64"/>
+    <text x="32" y="92" text-anchor="middle" fill="#475467" font-family="Inter, Arial, sans-serif" font-size="14">64 px</text>
+  </g>
+  <g transform="translate(700 238)">
+    <image href="./moeasy-app-icon.svg" width="32" height="32"/>
+    <text x="16" y="60" text-anchor="middle" fill="#475467" font-family="Inter, Arial, sans-serif" font-size="14">32 px</text>
+  </g>
+</svg>

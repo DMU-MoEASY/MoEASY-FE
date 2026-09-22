@@ -24,7 +24,7 @@ export function ScheduleExperience({ onOpenMap }: ScheduleExperienceProps) {
   const addEvent = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const date = new Date(`${form.date}T00:00:00`);
-    const values = { dateValue: form.date, day: String(date.getDate()).padStart(2, '0'), dow: weekdays[date.getDay()], title: form.title.trim(), group: form.group.trim(), time: form.time, place: form.place.trim() };
+    const values = { dateValue: form.date, day: String(date.getDate()).padStart(2, '0'), dow: weekdays[date.getDay()] ?? '', title: form.title.trim(), group: form.group.trim(), time: form.time, place: form.place.trim() };
     setEvents(current => (editingId
       ? current.map(item => item.id === editingId ? { ...item, ...values } : item)
       : [...current, { id: Date.now(), ...values, color: 'bg-amber-500', attending: true }])

@@ -3,7 +3,7 @@ interface ChatMessageProps {
   message: string;
   time: string;
   isMe: boolean;
-  avatar?: string;
+  avatar?: string | undefined;
 }
 
 export function ChatMessage({ sender, message, time, isMe, avatar }: ChatMessageProps) {

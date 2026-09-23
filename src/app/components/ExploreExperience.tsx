@@ -21,7 +21,7 @@ export function ExploreExperience({ meetups, onSelect }: ExploreExperienceProps)
   const [category, setCategory] = useState('추천');
   const [showFilters, setShowFilters] = useState(false);
   const [region, setRegion] = useState('전체');
-  const regions = useMemo(() => ['전체', ...Array.from(new Set(meetups.map(meetup => meetup.region.split(' ')[0])))], [meetups]);
+  const regions = useMemo(() => ['전체', ...Array.from(new Set(meetups.map(meetup => meetup.region.split(' ')[0] ?? meetup.region)))], [meetups]);
   const filteredMeetups = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('ko-KR');
     return meetups.filter(meetup => {

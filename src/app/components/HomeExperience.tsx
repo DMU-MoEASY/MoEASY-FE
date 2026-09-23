@@ -54,7 +54,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
             </div>
           </div>
 
-          <button onClick={() => onSelect(meetups[0])} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 lg:p-4">
+          <button disabled={!meetups[0]} onClick={() => meetups[0] && onSelect(meetups[0])} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 lg:p-4">
             <div className="relative h-40 overflow-hidden rounded-[18px] lg:h-48">
               <img src={photos[0]} alt="한강 러닝 모임" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />

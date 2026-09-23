@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePersistentState } from './hooks/usePersistentState';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -55,9 +55,31 @@ import { SignupPage } from './components/SignupPage';
 import { DMListPage } from './components/DMListPage';
 import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
-import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star } from 'lucide-react';
+import { NotFoundPage } from './components/NotFoundPage';
+import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
+import {
+  AUTH_SESSION_KEY,
+  createDemoAuthSession,
+  createSocialAuthSession,
+  getInitialAuthSession,
+  removeLegacyLoginState,
+  type AuthSession,
+} from './services/authSession';
+import { isApiMode } from './config/runtime';
+import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
-const meetups = [
+type Meetup = {
+  id: number;
+  name: string;
+  region: string;
+  description: string;
+  members: number;
+  tier: 'gold' | 'silver' | 'bronze';
+  category: string;
+  imageUrl: string;
+};
+
+const meetups: Meetup[] = [
   {
     id: 1,
     name: '강남 러닝 크루',
@@ -140,7 +162,7 @@ const meetups = [
   }
 ];
 
-const discoverMeetups = [
+const discoverMeetups: Meetup[] = [
   {
     id: 101,
     name: '강남 요가 클래스',
@@ -326,8 +348,11 @@ const pathTabs: Record<string, string> = Object.fromEntries(
 
 export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname);
-  const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)/)?.[1]);
-  const [isLoggedIn, setIsLoggedIn] = usePersistentState('moeasy:isLoggedIn', false);
+  const oauthHandledPath = useRef<string | null>(null);
+  const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
+  const [authSession, setAuthSession] = usePersistentState<AuthSession | null>(AUTH_SESSION_KEY, getInitialAuthSession());
+  const isLoggedIn = authSession !== null;
+  const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState(pathTabs[pathname] ?? 'home');
   const [myMeetups, setMyMeetups] = usePersistentState('moeasy:myMeetups', meetups);
@@ -345,10 +370,10 @@ export default function App() {
   const [showDMList, setShowDMList] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedMeetup, setSelectedMeetup] = useState(
-    () => [...myMeetups, ...exploreMeetups].find(item => item.id === initialMeetupId) ?? myMeetups[0] ?? meetups[0],
+  const [selectedMeetup, setSelectedMeetup] = useState<Meetup>(
+    () => [...myMeetups, ...exploreMeetups].find(item => item.id === initialMeetupId) ?? myMeetups[0] ?? meetups[0]!,
   );
-  const [joinTargetMeetup, setJoinTargetMeetup] = useState(discoverMeetups[0]);
+  const [joinTargetMeetup, setJoinTargetMeetup] = useState<Meetup>(discoverMeetups[0]!);
   const [reviewTargetEvent, setReviewTargetEvent] = useState({ title: '', id: '' });
   const [eventReviews, setEventReviews] = usePersistentState<Record<string, { rating: number; comment: string }>>('moeasy:eventReviews', {});
   const [detailTab, setDetailTab] = useState('홈');
@@ -365,12 +390,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const meetupId = Number(pathname.match(/^\/meetups\/(\d+)/)?.[1]);
+    removeLegacyLoginState();
+  }, []);
+
+  useEffect(() => {
+    const provider = getOAuthProviderFromPath(pathname);
+    const callbackKey = `${pathname}${window.location.search}`;
+    if (!provider || oauthHandledPath.current === callbackKey) return;
+
+    oauthHandledPath.current = callbackKey;
+    setOauthCallback({ status: 'loading' });
+    void completeSocialLogin(provider, window.location.search)
+      .then((result) => {
+        setAuthSession(createSocialAuthSession(provider, result));
+        window.history.replaceState({}, '', '/');
+        setPathname('/');
+      })
+      .catch((error: unknown) => {
+        setOauthCallback({
+          status: 'error',
+          message: error instanceof Error ? error.message : '소셜 로그인을 완료하지 못했습니다.',
+        });
+      });
+  }, [pathname, setAuthSession]);
+
+  useEffect(() => {
+    const meetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
     if (meetupId) {
       const meetup = [...myMeetups, ...exploreMeetups].find(item => item.id === meetupId);
       if (meetup) {
         setSelectedMeetup(meetup);
         setShowMeetupDetail(true);
+      } else {
+        setShowMeetupDetail(false);
       }
       return;
     }
@@ -393,12 +445,43 @@ export default function App() {
     changePath(tabPaths[tab] ?? '/');
   };
 
-  const openMeetup = (meetup: typeof meetups[number]) => {
+  const openMeetup = (meetup: Meetup) => {
     setSelectedMeetup(meetup);
     setDetailTab('홈');
     setShowMeetupDetail(true);
     changePath(`/meetups/${meetup.id}`);
   };
+
+  if (getOAuthProviderFromPath(pathname)) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F4F6FA] px-5">
+        <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-900/10">
+          {oauthCallback.status === 'error' ? (
+            <>
+              <h1 className="text-xl font-semibold text-slate-900">로그인을 완료하지 못했어요</h1>
+              <p role="alert" className="mt-3 text-sm leading-6 text-red-600">{oauthCallback.message}</p>
+              <button
+                onClick={() => {
+                  window.history.replaceState({}, '', '/');
+                  setPathname('/');
+                  setOauthCallback({ status: 'idle' });
+                }}
+                className="mt-6 rounded-xl bg-[#101828] px-5 py-3 text-sm font-semibold text-white"
+              >
+                로그인 화면으로 돌아가기
+              </button>
+            </>
+          ) : (
+            <>
+              <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-blue-600" />
+              <h1 className="mt-5 text-xl font-semibold text-slate-900">소셜 로그인을 확인하고 있어요</h1>
+              <p className="mt-2 text-sm text-slate-500">잠시만 기다려주세요.</p>
+            </>
+          )}
+        </section>
+      </main>
+    );
+  }
 
   // Show login/signup screens if not logged in
   if (!isLoggedIn) {
@@ -406,20 +489,32 @@ export default function App() {
       return (
         <SignupExperience
           onSignup={() => {
-            setIsLoggedIn(true);
+            setAuthSession(createDemoAuthSession());
             setShowSignup(false);
           }}
           onBack={() => setShowSignup(false)}
+          apiMode={isApiMode}
+          onSocialSignup={beginSocialLogin}
         />
       );
     }
 
     return (
       <LoginPage
-        onLogin={() => setIsLoggedIn(true)}
+        onLogin={() => setAuthSession(createDemoAuthSession())}
         onSignupClick={() => setShowSignup(true)}
       />
     );
+  }
+
+  const meetupRouteMatch = pathname.match(/^\/meetups\/(\d+)$/);
+  const routeMeetupExists = meetupRouteMatch
+    ? [...myMeetups, ...exploreMeetups].some(item => item.id === Number(meetupRouteMatch[1]))
+    : false;
+  const isRouteNotFound = !pathTabs[pathname] && (!meetupRouteMatch || !routeMeetupExists);
+
+  if (isRouteNotFound) {
+    return <NotFoundPage onHome={() => navigateToTab('home')} />;
   }
 
   if (showNotifications) {
@@ -1481,7 +1576,7 @@ export default function App() {
                                   <Star
                                     key={star}
                                     className={`w-4 h-4 ${
-                                      star <= eventReviews['event-1'].rating
+                                      star <= eventReviews['event-1']!.rating
                                         ? 'fill-yellow-400 text-yellow-400'
                                         : 'text-gray-300'
                                     }`}
@@ -1489,9 +1584,9 @@ export default function App() {
                                 ))}
                               </div>
                             </div>
-                            {eventReviews['event-1'].comment && (
+                            {eventReviews['event-1']!.comment && (
                               <p className="text-sm text-green-700 leading-relaxed">
-                                "{eventReviews['event-1'].comment}"
+                                "{eventReviews['event-1']!.comment}"
                               </p>
                             )}
                           </div>
@@ -1534,7 +1629,7 @@ export default function App() {
                                   <Star
                                     key={star}
                                     className={`w-4 h-4 ${
-                                      star <= eventReviews['event-2'].rating
+                                      star <= eventReviews['event-2']!.rating
                                         ? 'fill-yellow-400 text-yellow-400'
                                         : 'text-gray-300'
                                     }`}
@@ -1542,9 +1637,9 @@ export default function App() {
                                 ))}
                               </div>
                             </div>
-                            {eventReviews['event-2'].comment && (
+                            {eventReviews['event-2']!.comment && (
                               <p className="text-sm text-green-700 leading-relaxed">
-                                "{eventReviews['event-2'].comment}"
+                                "{eventReviews['event-2']!.comment}"
                               </p>
                             )}
                           </div>
@@ -1577,7 +1672,7 @@ export default function App() {
                 }
               }}
               onLogout={() => {
-                setIsLoggedIn(false);
+                setAuthSession(null);
                 navigateToTab('home');
               }}
             />
@@ -1654,7 +1749,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (confirm('로그아웃 하시겠습니까?')) {
-                        setIsLoggedIn(false);
+                        setAuthSession(null);
                         setActiveTab('home');
                       }
                     }}

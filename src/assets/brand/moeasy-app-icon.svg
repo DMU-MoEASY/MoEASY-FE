@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="#102A56"/>
+  <rect x="17.5" y="17.5" width="477" height="477" rx="114.5" stroke="white" stroke-opacity="0.09" stroke-width="3"/>
+
+  <!-- Link joints sit behind the E and make the connection idea readable at small sizes. -->
+  <rect x="76" y="221" width="142" height="70" rx="35" stroke="#75E6C1" stroke-width="22"/>
+  <rect x="294" y="221" width="142" height="70" rx="35" stroke="#75E6C1" stroke-width="22"/>
+
+  <!-- Compact custom E. The middle arm overlaps both links to create an over-under joint. -->
+  <path d="M174 137C174 124.85 183.85 115 196 115H358C367.941 115 376 123.059 376 133V151C376 160.941 367.941 169 358 169H234V229H340C349.941 229 358 237.059 358 247V265C358 274.941 349.941 283 340 283H234V343H358C367.941 343 376 351.059 376 361V379C376 388.941 367.941 397 358 397H196C183.85 397 174 387.15 174 375V137Z" fill="#5B7CFA"/>
+
+  <!-- Clean overlap caps preserve the chain illusion without shadows or gradients. -->
+  <path d="M174 229H207C216.941 229 225 237.059 225 247V265C225 274.941 216.941 283 207 283H174V229Z" fill="#84F0CC"/>
+  <path d="M325 229H340C349.941 229 358 237.059 358 247V265C358 274.941 349.941 283 340 283H325V229Z" fill="#84F0CC"/>
+
+  <!-- Small negative-space cuts keep the link openings clear at favicon scale. -->
+  <rect x="97" y="243" width="77" height="26" rx="13" fill="#102A56"/>
+  <rect x="358" y="243" width="57" height="26" rx="13" fill="#102A56"/>
+</svg>

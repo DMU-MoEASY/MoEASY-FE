@@ -1,0 +1,57 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="760" rx="40" fill="#F4F7FB"/>
+
+  <text x="72" y="72" fill="#101828" font-family="Inter, Pretendard, Arial, sans-serif" font-size="28" font-weight="750">MoEasy logo directions</text>
+  <text x="72" y="105" fill="#667085" font-family="Inter, Pretendard, Arial, sans-serif" font-size="16">E가 Mo와 asy를 연결하는 세 가지 방식</text>
+
+  <!-- A: the middle stroke of E lightly bridges both neighboring letters -->
+  <g transform="translate(72 140)">
+    <rect width="1056" height="168" rx="28" fill="white"/>
+    <circle cx="58" cy="52" r="22" fill="#E8EEFF"/>
+    <text x="58" y="59" text-anchor="middle" fill="#315EFB" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800">A</text>
+    <text x="96" y="47" fill="#344054" font-family="Inter, Pretendard, Arial, sans-serif" font-size="15" font-weight="700">SOFT BRIDGE</text>
+    <text x="96" y="72" fill="#98A2B3" font-family="Inter, Pretendard, Arial, sans-serif" font-size="13">E의 가운데 획이 양옆 글자에 살짝 닿는 방식</text>
+
+    <g transform="translate(650 26)">
+      <text x="-275" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">Mo</text>
+      <path d="M-82 28C-82 20.268-75.732 14-68 14H4V34H-58V61H-4V81H-58V108H6V128H-68C-75.732 128-82 121.732-82 114V28Z" fill="#315EFB"/>
+      <rect x="-94" y="61" width="116" height="20" rx="10" fill="#315EFB"/>
+      <circle cx="-91" cy="71" r="5" fill="#75E6C1"/>
+      <circle cx="19" cy="71" r="5" fill="#75E6C1"/>
+      <text x="14" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">asy</text>
+    </g>
+  </g>
+
+  <!-- B: subtle chain joints sit between o-E and E-a -->
+  <g transform="translate(72 328)">
+    <rect width="1056" height="168" rx="28" fill="white"/>
+    <circle cx="58" cy="52" r="22" fill="#EAFBF5"/>
+    <text x="58" y="59" text-anchor="middle" fill="#168F6C" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800">B</text>
+    <text x="96" y="47" fill="#344054" font-family="Inter, Pretendard, Arial, sans-serif" font-size="15" font-weight="700">LINK JOINT</text>
+    <text x="96" y="72" fill="#98A2B3" font-family="Inter, Pretendard, Arial, sans-serif" font-size="13">글자 사이에 작은 고리 결합부를 두는 방식</text>
+
+    <g transform="translate(650 26)">
+      <text x="-283" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">Mo</text>
+      <rect x="-101" y="62" width="30" height="18" rx="9" stroke="#75E6C1" stroke-width="7"/>
+      <path d="M-73 28C-73 20.268-66.732 14-59 14H10V34H-49V61H3V81H-49V108H12V128H-59C-66.732 128-73 121.732-73 114V28Z" fill="#315EFB"/>
+      <rect x="5" y="62" width="30" height="18" rx="9" stroke="#75E6C1" stroke-width="7"/>
+      <text x="25" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">asy</text>
+    </g>
+  </g>
+
+  <!-- C: a single understated line passes through o-E-a -->
+  <g transform="translate(72 516)">
+    <rect width="1056" height="168" rx="28" fill="white" stroke="#315EFB" stroke-width="2"/>
+    <circle cx="58" cy="52" r="22" fill="#315EFB"/>
+    <text x="58" y="59" text-anchor="middle" fill="white" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800">C</text>
+    <text x="96" y="47" fill="#344054" font-family="Inter, Pretendard, Arial, sans-serif" font-size="15" font-weight="700">CONTINUOUS LINK</text>
+    <text x="96" y="72" fill="#98A2B3" font-family="Inter, Pretendard, Arial, sans-serif" font-size="13">o–E–a를 하나의 짧은 선으로 잇는 가장 단순한 방식</text>
+
+    <g transform="translate(650 26)">
+      <text x="-283" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">Mo</text>
+      <rect x="-105" y="64" width="150" height="14" rx="7" fill="#75E6C1"/>
+      <path d="M-73 28C-73 20.268-66.732 14-59 14H10V34H-49V61H3V81H-49V108H12V128H-59C-66.732 128-73 121.732-73 114V28Z" fill="#315EFB"/>
+      <text x="25" y="104" fill="#102A56" font-family="Inter, Pretendard, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-8">asy</text>
+    </g>
+  </g>
+</svg>

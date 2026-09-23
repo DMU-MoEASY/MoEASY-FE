@@ -1,22 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { persistenceStore } from '../lib/persistence';
 
 export function usePersistentState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const saved = window.localStorage.getItem(key);
-      return saved ? (JSON.parse(saved) as T) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
+  const [value, setValue] = useState<T>(() => persistenceStore.read<T>(key) ?? initialValue);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // The demo remains usable when storage is unavailable or full.
-    }
+    persistenceStore.write(key, value);
   }, [key, value]);
 
   return [value, setValue] as [T, Dispatch<SetStateAction<T>>];

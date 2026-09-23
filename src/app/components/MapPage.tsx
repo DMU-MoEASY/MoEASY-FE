@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { AlertCircle, CalendarDays, Check, Clock3, LocateFixed, MapPin, Navigation, Search, Users, Zap } from 'lucide-react';
 import { hasGoogleMapsKey, hasKakaoMapsKey, loadGoogleMaps, loadKakaoPlaces } from '../lib/mapServices';
 
@@ -36,9 +37,9 @@ export function MapPage() {
   const [mode, setMode] = useState<MapMode>('nearby');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MapItem[]>([]);
-  const [selectedId, setSelectedId] = useState(nearbyMeetups[0].id);
+  const [selectedId, setSelectedId] = useState(nearbyMeetups[0]!.id);
   const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
-  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle');
   const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   const modeItems = useMemo(() => mode === 'nearby' ? nearbyMeetups : scheduledMeetups, [mode]);
@@ -105,7 +106,7 @@ export function MapPage() {
     setSearchResults([]);
     setQuery('');
     setSearchStatus('idle');
-    setSelectedId(nextMode === 'nearby' ? nearbyMeetups[0].id : scheduledMeetups[0].id);
+    setSelectedId(nextMode === 'nearby' ? nearbyMeetups[0]!.id : scheduledMeetups[0]!.id);
   };
 
   const searchPlaces = async (event: FormEvent) => {
@@ -131,8 +132,13 @@ export function MapPage() {
           source: 'kakao' as const,
           url: place.place_url,
         }));
+        if (normalized.length === 0) {
+          setSearchResults([]);
+          setSearchStatus('empty');
+          return;
+        }
         setSearchResults(normalized);
-        setSelectedId(normalized[0].id);
+        setSelectedId(normalized[0]!.id);
         setSearchStatus('ready');
       }, {
         location: new kakao.maps.LatLng(defaultCenter.lat, defaultCenter.lng),
@@ -209,6 +215,7 @@ export function MapPage() {
             {mapStatus === 'ready' ? 'GOOGLE MAPS · LIVE' : '지도 키 연결 대기'}
           </div>
           {searchStatus === 'error' && <div className="absolute left-4 right-4 top-16 z-20 rounded-xl bg-white p-3 text-sm shadow-lg">Kakao 장소 검색을 사용할 수 없습니다. JavaScript 키와 등록 도메인을 확인해주세요.</div>}
+          {searchStatus === 'empty' && <div className="absolute left-4 right-4 top-16 z-20 rounded-xl bg-white p-3 text-sm shadow-lg">검색 결과가 없습니다. 장소 이름이나 지역을 바꿔 다시 검색해주세요.</div>}
           {locationStatus === 'error' && <div className="absolute bottom-4 left-4 right-4 z-30 rounded-xl bg-white p-3 text-sm text-rose-700 shadow-lg lg:right-auto">위치 권한을 허용하면 현재 위치를 지도에서 확인할 수 있어요.</div>}
           <div className="absolute bottom-3 left-3 right-3 z-30 lg:hidden"><LocationCard item={selected} compact /></div>
         </div>
@@ -236,7 +243,7 @@ function FallbackMap() {
   return <div className="absolute inset-0 overflow-hidden bg-[#DCE4E8]"><div className="absolute inset-0 opacity-70 bg-[linear-gradient(28deg,transparent_46%,rgba(255,255,255,.9)_47%,rgba(255,255,255,.9)_52%,transparent_53%),linear-gradient(100deg,transparent_44%,rgba(255,255,255,.75)_45%,rgba(255,255,255,.75)_50%,transparent_51%)] bg-[size:150px_120px,190px_150px]"/><div className="absolute inset-x-0 top-[54%] h-7 -rotate-[7deg] border-y border-blue-300/50 bg-blue-200/70"/></div>;
 }
 
-function LocationCard({ item, compact = false }: { item?: MapItem; compact?: boolean }) {
+function LocationCard({ item, compact = false }: { item: MapItem | undefined; compact?: boolean }) {
   if (!item) return null;
   return <div className={`${compact ? 'border border-border bg-card/95 text-foreground shadow-lg backdrop-blur' : ''} rounded-xl p-4`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate font-semibold">{item.title}</h3>{item.source === 'kakao' && <span className="rounded-full bg-[#FEE500] px-2 py-0.5 text-[9px] font-semibold text-[#181600]">KAKAO</span>}</div><div className={`mt-2 space-y-1.5 text-xs ${compact || item.source === 'kakao' ? 'text-muted-foreground' : 'text-slate-400'}`}><p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-primary" />{item.place}</p><p className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />{item.meta}</p>{item.people && <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" />{item.people}</p>}</div></div>{item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Navigation className="h-4 w-4" /></a> : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Navigation className="h-4 w-4" /></span>}</div></div>;
 }

@@ -1,4 +1,4 @@
-import { Home, Search, Calendar, Map, User, Sparkles } from 'lucide-react';
+import { Home, Search, Calendar, Map, User } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -16,14 +16,8 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   return (
     <aside className="fixed bottom-0 left-0 top-0 z-50 flex w-[272px] flex-col bg-[#101828] text-white">
-      <div className="h-24 px-7 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-[13px] bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-blue-950/40">
-          <Sparkles className="w-5 h-5" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">MoEasy</h1>
-          <p className="text-xs text-slate-400">Meet people, easily.</p>
-        </div>
+      <div className="h-24 px-6 flex items-center">
+        <img src="/brand/moeasy-logo.png" alt="MoEasy" className="h-11 w-auto max-w-[184px] object-contain" />
       </div>
 
       <nav className="flex-1 px-4 py-5">

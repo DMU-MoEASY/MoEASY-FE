@@ -6,6 +6,8 @@ const callbackPath: Record<SocialProvider, string> = {
   GOOGLE: '/oauth/google/callback',
 };
 
+const correlationKey = (provider: SocialProvider) => `moeasy:oauth-correlation:${provider}`;
+
 function getRedirectUri(provider: SocialProvider) {
   return `${window.location.origin}${callbackPath[provider]}`;
 }
@@ -28,7 +30,15 @@ export async function beginSocialLogin(provider: SocialProvider) {
     throw new Error(`${provider === 'KAKAO' ? '카카오 REST API 키' : 'Google 웹 클라이언트 ID'}가 설정되지 않았습니다.`);
   }
 
-  const { state } = await authApi.issueOAuthState(provider);
+  const correlationId = crypto.randomUUID();
+  sessionStorage.setItem(correlationKey(provider), correlationId);
+  let state: string;
+  try {
+    ({ state } = await authApi.issueOAuthState(provider, correlationId));
+  } catch (error) {
+    sessionStorage.removeItem(correlationKey(provider));
+    throw error;
+  }
   const redirectUri = getRedirectUri(provider);
   const authorizeUrl = new URL(
     provider === 'KAKAO'
@@ -54,15 +64,28 @@ export async function completeSocialLogin(
 ): Promise<SocialLoginResult> {
   const params = new URLSearchParams(search);
   const error = params.get('error');
-  if (error) throw new Error(`소셜 로그인이 취소되었거나 실패했습니다. (${error})`);
+  if (error) {
+    sessionStorage.removeItem(correlationKey(provider));
+    throw new Error(`소셜 로그인이 취소되었거나 실패했습니다. (${error})`);
+  }
 
   const code = params.get('code');
   const state = params.get('state');
   if (!code || !state) throw new Error('소셜 로그인 응답에 code 또는 state가 없습니다.');
 
-  return authApi.loginWithSocial(provider, {
-    code,
-    state,
-    redirectUri: getRedirectUri(provider),
-  });
+  const correlationId = sessionStorage.getItem(correlationKey(provider));
+  if (!correlationId) {
+    throw new Error('로그인 요청을 시작한 브라우저 정보를 확인할 수 없습니다. 다시 로그인해주세요.');
+  }
+
+  try {
+    return await authApi.loginWithSocial(provider, {
+      code,
+      state,
+      redirectUri: getRedirectUri(provider),
+      correlationId,
+    });
+  } finally {
+    sessionStorage.removeItem(correlationKey(provider));
+  }
 }

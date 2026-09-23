@@ -68,13 +68,13 @@ export type SocialLoginResult = {
 };
 
 export const authApi = {
-  issueOAuthState: (provider: SocialProvider) => apiRequest<{ state: string }>(
+  issueOAuthState: (provider: SocialProvider, correlationId: string) => apiRequest<{ state: string }>(
     '/auth/oauth/states',
-    { method: 'POST', body: { provider } },
+    { method: 'POST', body: { provider, correlationId } },
   ),
   loginWithSocial: (
     provider: SocialProvider,
-    input: { code: string; state: string; redirectUri: string },
+    input: { code: string; state: string; redirectUri: string; correlationId: string },
   ) => apiRequest<SocialLoginResult>(
     `/auth/oauth/${provider.toLowerCase()}`,
     { method: 'POST', body: input },

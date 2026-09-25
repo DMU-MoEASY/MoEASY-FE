@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Bell, CalendarDays, Camera, Check, CheckCheck, C
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import type { SocialProvider } from '../services/p0Api';
+import { ReceiptOcrExperience } from './ReceiptOcrExperience';
 
 function PageFrame({ eyebrow, title, description, onBack, action, children, dark = false }: { eyebrow: string; title: string; description?: string; onBack: () => void; action?: React.ReactNode; children: React.ReactNode; dark?: boolean }) {
   return <div className="min-h-screen bg-background">
@@ -187,9 +188,7 @@ export function MembersExperience({ onBack }: { onBack: () => void }) {
 }
 
 export function ReceiptExperience({ onBack }: { onBack: () => void }) {
-  return <PageFrame eyebrow="Smart settlement" title="영수증 정산" description="사진 한 장으로 지출 내역과 참여 인원을 빠르게 정리하세요." onBack={onBack}>
-    <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]"><button className="group flex min-h-[420px] flex-col items-center justify-center rounded-[26px] border-2 border-dashed border-slate-300 bg-card p-8 text-center transition hover:border-primary hover:bg-accent/30"><span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#101828] text-white"><Camera className="h-6 w-6"/></span><h2 className="mt-5 text-xl font-semibold">영수증을 촬영하거나 올려주세요</h2><p className="mt-2 text-sm text-muted-foreground">JPG, PNG · 최대 10MB</p><span className="mt-6 rounded-full bg-secondary px-4 py-2 text-sm font-medium">파일 선택</span></button><section className="space-y-4"><div className="rounded-[24px] bg-card p-6 ring-1 ring-black/[0.06]"><p className="text-xs font-semibold text-primary">EXTRACTED DATA</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><Info label="사용처" value="해운대 횟집"/><Info label="결제 일시" value="9월 7일 19:30"/><Info label="총 결제 금액" value="120,000원"/><Info label="참여 인원" value="8명"/></div></div><div className="rounded-[24px] bg-[#101828] p-6 text-white"><div className="flex items-end justify-between"><div><p className="text-xs text-slate-400">1인당 정산 금액</p><strong className="mt-2 block text-3xl">15,000원</strong></div><Users className="h-5 w-5 text-[#8FAAFF]"/></div><div className="mt-6 flex -space-x-2">{['ME','CH','YH','MS','SJ'].map(item=><span key={item} className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#101828] bg-primary text-[9px]">{item}</span>)}</div><button className="mt-7 w-full rounded-xl bg-primary py-3.5 text-sm font-semibold">8명에게 정산 요청하기</button></div></section></div>
-  </PageFrame>;
+  return <ReceiptOcrExperience onBack={onBack} />;
 }
 
 export function SchedulerExperience({ onBack }: { onBack: () => void }) {

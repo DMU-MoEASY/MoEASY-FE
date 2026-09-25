@@ -25,8 +25,8 @@ export function getInitialAuthSession(): AuthSession | null {
     : null;
 }
 
-export function createDemoAuthSession(): AuthSession {
-  return { mode: 'demo', onboardingCompleted: true };
+export function createDemoAuthSession(onboardingCompleted = true): AuthSession {
+  return { mode: 'demo', onboardingCompleted };
 }
 
 export function createSocialAuthSession(

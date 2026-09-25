@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Bell, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, Lock, Mail, MapPin, MessageCircle, MoreHorizontal, Paperclip, Plus, Receipt, Search, Send, Sparkles, User, UserCheck, Users, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, Lock, Mail, MapPin, MessageCircle, MoreHorizontal, Paperclip, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet } from 'lucide-react';
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import type { SocialProvider } from '../services/p0Api';
@@ -29,16 +29,34 @@ export function SignupExperience({
   apiMode?: boolean;
   onSocialSignup?: (provider: SocialProvider) => Promise<void>;
 }) {
-  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [signupError, setSignupError] = useState('');
 
-  const continueWithEmail = () => {
-    if (apiMode) {
-      setSignupError('현재 백엔드는 이메일 회원가입을 제공하지 않습니다. 카카오 또는 Google을 이용해주세요.');
+  const submitLocalSignup = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignupError('');
+
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      setSignupError('비밀번호는 영문과 숫자를 포함해 8자 이상 입력해주세요.');
       return;
     }
-    setStep(2);
+    if (password !== passwordConfirm) {
+      setSignupError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (!termsAccepted) {
+      setSignupError('서비스 이용약관과 개인정보 처리방침에 동의해주세요.');
+      return;
+    }
+    if (apiMode) {
+      setSignupError('이메일 회원가입 API가 아직 준비되지 않았습니다. 현재는 카카오 또는 Google을 이용해주세요.');
+      return;
+    }
+    onSignup();
   };
 
   const startSocialSignup = async (provider: SocialProvider) => {
@@ -57,10 +75,19 @@ export function SignupExperience({
     }
   };
 
-  return <main className="min-h-screen bg-[#F4F6FA] p-3 sm:p-5 lg:p-7"><div className="mx-auto grid min-h-[calc(100vh-24px)] max-w-[1320px] overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-900/10 lg:grid-cols-[.75fr_1.25fr]">
-    <aside className="relative hidden overflow-hidden bg-[#101828] p-10 text-white lg:flex lg:flex-col lg:justify-between"><div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_30%_20%,#315EFB_0,transparent_35%),radial-gradient(circle_at_80%_90%,#C9FF5C_0,transparent_30%)]"/><img src="/brand/moeasy-logo.png" alt="MoEasy" className="relative h-12 w-auto self-start object-contain"/><div className="relative"><p className="text-xs font-semibold tracking-[0.18em] text-[#8FAAFF]">START A NEW CIRCLE</p><h1 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em]">새로운 사람과<br/>새로운 일상을 시작해요.</h1><div className="mt-10 space-y-5">{['관심사에 맞는 모임 발견','일정과 장소를 한 번에 관리','함께한 순간과 비용까지 기록'].map((item,index)=><div key={item} className="flex items-center gap-3 text-sm text-slate-300"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-[11px]">0{index+1}</span>{item}</div>)}</div></div></aside>
-    <section className="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-20"><div className="w-full max-w-xl"><button onClick={onBack} className="mb-10 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4"/>로그인으로</button><div className="flex items-center justify-between"><div><p className="text-xs font-semibold text-primary">STEP {step} OF 2</p><h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{step===1?'기본 정보를 알려주세요':'관심사를 선택해주세요'}</h2></div><span className="text-sm text-muted-foreground">{step}/2</span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary transition-all" style={{width:`${step*50}%`}}/></div>
-      {step===1?<div className="mt-9 space-y-4"><SignupField icon={<User/>} placeholder="이름"/><SignupField icon={<Mail/>} placeholder="이메일 주소" type="email"/><SignupField icon={<Lock/>} placeholder="비밀번호 · 6자 이상" type="password"/><button onClick={continueWithEmail} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#101828] py-4 text-sm font-semibold text-white">다음으로 <ArrowRight className="h-4 w-4"/></button>{signupError&&<p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{signupError}</p>}<div className="flex items-center gap-3"><span className="h-px flex-1 bg-border"/><span className="text-xs text-muted-foreground">간편 가입</span><span className="h-px flex-1 bg-border"/></div><div className="grid grid-cols-2 gap-3"><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('KAKAO')} className="rounded-xl bg-[#FEE500] py-3.5 text-sm font-semibold disabled:cursor-wait disabled:opacity-60">{socialLoading==='KAKAO'?'연결 중…':'카카오'}</button><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('GOOGLE')} className="rounded-xl py-3.5 text-sm font-semibold ring-1 ring-black/10 disabled:cursor-wait disabled:opacity-60">{socialLoading==='GOOGLE'?'연결 중…':'Google'}</button></div></div>:<div className="mt-9"><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{['러닝','등산','스터디','독서','사진','맛집','보드게임','여행','봉사'].map((item,index)=><button key={item} className={`rounded-2xl p-4 text-left text-sm ring-1 ring-black/[0.06] ${index<3?'bg-accent font-semibold text-primary':'bg-white'}`}>{item}</button>)}</div><p className="mt-4 text-xs text-muted-foreground">관심사는 언제든 변경할 수 있어요.</p><button onClick={onSignup} className="mt-7 w-full rounded-xl bg-primary py-4 text-sm font-semibold text-white">MoEasy 시작하기</button></div>}
+  return <main className="min-h-screen bg-[#F4F6FA] p-3 sm:p-5 lg:p-7"><div className="mx-auto grid min-h-[calc(100vh-24px)] max-w-[1320px] overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-900/10 lg:grid-cols-[.8fr_1.2fr]">
+    <aside className="relative hidden overflow-hidden bg-[#101828] p-10 text-white lg:flex lg:flex-col lg:justify-between"><div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_30%_20%,#315EFB_0,transparent_35%),radial-gradient(circle_at_80%_90%,#C9FF5C_0,transparent_30%)]"/><img src="/brand/moeasy-logo.png" alt="MoEasy" className="relative h-12 w-auto self-start object-contain"/><div className="relative"><p className="text-xs font-semibold tracking-[0.18em] text-[#8FAAFF]">START A NEW CIRCLE</p><h1 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em]">새로운 사람과<br/>새로운 일상을 시작해요.</h1><div className="mt-10 space-y-5">{['이메일로 간편하게 시작','관심사에 맞는 모임 발견','일정과 장소를 한 번에 관리'].map((item,index)=><div key={item} className="flex items-center gap-3 text-sm text-slate-300"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-[11px]">0{index+1}</span>{item}</div>)}</div></div></aside>
+    <section className="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-20"><div className="w-full max-w-lg"><button onClick={onBack} className="mb-8 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4"/>로그인으로</button><p className="text-xs font-semibold text-primary">CREATE ACCOUNT</p><h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">이메일로 가입하기</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">계정을 만든 다음 닉네임과 관심사를 설정할 수 있어요.</p>
+      <form onSubmit={submitLocalSignup} className="mt-8 space-y-4">
+        <SignupField icon={<Mail/>}><input required type="email" autoComplete="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="이메일 주소" className="w-full bg-transparent py-4 text-sm outline-none"/></SignupField>
+        <SignupField icon={<Lock/>}><input required type="password" autoComplete="new-password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="비밀번호 · 영문과 숫자 포함 8자 이상" className="w-full bg-transparent py-4 text-sm outline-none"/></SignupField>
+        <SignupField icon={<Lock/>}><input required type="password" autoComplete="new-password" value={passwordConfirm} onChange={event=>setPasswordConfirm(event.target.value)} placeholder="비밀번호 확인" className="w-full bg-transparent py-4 text-sm outline-none"/></SignupField>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm leading-5 text-slate-600 ring-1 ring-black/[0.05]"><input type="checkbox" checked={termsAccepted} onChange={event=>setTermsAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-blue-600"/><span><strong className="font-semibold text-slate-800">필수 약관에 동의합니다.</strong><span className="mt-1 block text-xs text-slate-500">서비스 이용약관 및 개인정보 처리방침</span></span></label>
+        {signupError&&<p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{signupError}</p>}
+        <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#101828] py-4 text-sm font-semibold text-white transition hover:bg-primary">계정 만들기 <ArrowRight className="h-4 w-4"/></button>
+      </form>
+      <div className="my-7 flex items-center gap-3"><span className="h-px flex-1 bg-border"/><span className="text-xs text-muted-foreground">간편 가입</span><span className="h-px flex-1 bg-border"/></div>
+      <div className="grid grid-cols-2 gap-3"><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('KAKAO')} className="rounded-xl bg-[#FEE500] py-3.5 text-sm font-semibold disabled:cursor-wait disabled:opacity-60">{socialLoading==='KAKAO'?'연결 중…':'카카오'}</button><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('GOOGLE')} className="rounded-xl py-3.5 text-sm font-semibold ring-1 ring-black/10 disabled:cursor-wait disabled:opacity-60">{socialLoading==='GOOGLE'?'연결 중…':'Google'}</button></div>
     </div></section>
   </div></main>;
 }
@@ -172,6 +199,6 @@ export function SchedulerExperience({ onBack }: { onBack: () => void }) {
 }
 
 function FormField({label,children}:{label:string;children:React.ReactNode}) { return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>; }
-function SignupField({icon,placeholder,type='text'}:{icon:React.ReactNode;placeholder:string;type?:string}) { return <label className="flex items-center gap-3 rounded-xl bg-secondary px-4 ring-1 ring-transparent focus-within:bg-white focus-within:ring-primary/40"><span className="text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">{icon}</span><input required type={type} placeholder={placeholder} className="w-full bg-transparent py-4 text-sm outline-none"/></label>; }
+function SignupField({icon,children}:{icon:React.ReactNode;children:React.ReactNode}) { return <label className="flex items-center gap-3 rounded-xl bg-secondary px-4 ring-1 ring-transparent focus-within:bg-white focus-within:ring-primary/40"><span className="text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">{icon}</span>{children}</label>; }
 function ChatBubble({avatar,name,text,time}:{avatar:string;name:string;text:string;time:string}) { return <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#101828] text-[10px] font-semibold text-white">{avatar}</span><div><p className="mb-1 text-xs text-muted-foreground">{name}</p><div className="max-w-md rounded-[20px] rounded-tl-md bg-white px-4 py-3 text-sm leading-6 shadow-sm">{text}<span className="ml-2 text-[10px] text-muted-foreground">{time}</span></div></div></div>; }
 function Info({label,value}:{label:string;value:string}) { return <div className="rounded-2xl bg-secondary p-4"><p className="text-xs text-muted-foreground">{label}</p><strong className="mt-2 block text-sm">{value}</strong></div>; }

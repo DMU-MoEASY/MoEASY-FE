@@ -56,6 +56,7 @@ import { DMListPage } from './components/DMListPage';
 import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
+import { OnboardingPage } from './components/OnboardingPage';
 import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
 import {
   AUTH_SESSION_KEY,
@@ -65,6 +66,7 @@ import {
   removeLegacyLoginState,
   type AuthSession,
 } from './services/authSession';
+import { defaultUserProfile, USER_PROFILE_KEY, type UserProfile } from './services/userProfile';
 import { isApiMode } from './config/runtime';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
@@ -351,6 +353,7 @@ export default function App() {
   const oauthHandledPath = useRef<string | null>(null);
   const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
   const [authSession, setAuthSession] = usePersistentState<AuthSession | null>(AUTH_SESSION_KEY, getInitialAuthSession());
+  const [userProfile, setUserProfile] = usePersistentState<UserProfile>(USER_PROFILE_KEY, defaultUserProfile);
   const isLoggedIn = authSession !== null;
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [showSignup, setShowSignup] = useState(false);
@@ -402,6 +405,7 @@ export default function App() {
     setOauthCallback({ status: 'loading' });
     void completeSocialLogin(provider, window.location.search)
       .then((result) => {
+        if (!result.onboardingCompleted) setUserProfile(defaultUserProfile);
         setAuthSession(createSocialAuthSession(provider, result));
         window.history.replaceState({}, '', '/');
         setPathname('/');
@@ -489,7 +493,8 @@ export default function App() {
       return (
         <SignupExperience
           onSignup={() => {
-            setAuthSession(createDemoAuthSession());
+            setUserProfile(defaultUserProfile);
+            setAuthSession(createDemoAuthSession(false));
             setShowSignup(false);
           }}
           onBack={() => setShowSignup(false)}
@@ -503,6 +508,20 @@ export default function App() {
       <LoginPage
         onLogin={() => setAuthSession(createDemoAuthSession())}
         onSignupClick={() => setShowSignup(true)}
+      />
+    );
+  }
+
+  if (!authSession.onboardingCompleted) {
+    return (
+      <OnboardingPage
+        initialProfile={userProfile}
+        onComplete={(profile) => {
+          setUserProfile(profile);
+          setAuthSession((current) => current ? { ...current, onboardingCompleted: true } : current);
+          window.history.replaceState({}, '', '/');
+          setPathname('/');
+        }}
       />
     );
   }
@@ -1664,6 +1683,8 @@ export default function App() {
 
           {activeTab === 'profile' && (
             <ProfileExperience
+              profile={userProfile}
+              onProfileChange={setUserProfile}
               meetups={myMeetups}
               onSelectMeetup={(item) => {
                 const meetup = myMeetups.find(candidate => candidate.id === item.id);

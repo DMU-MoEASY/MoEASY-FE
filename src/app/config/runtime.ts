@@ -7,7 +7,7 @@ export const runtimeConfig = {
   apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'https://jeonggyul.duckdns.org/api/v1').replace(/\/$/, ''),
   dataSource,
   oauth: {
-    kakaoRestApiKey: import.meta.env.VITE_KAKAO_REST_API_KEY || '',
+    kakaoJavaScriptKey: import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY || '',
     googleWebClientId: import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID || '',
   },
 };

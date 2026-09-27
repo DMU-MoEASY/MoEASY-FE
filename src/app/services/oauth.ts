@@ -1,4 +1,5 @@
 import { runtimeConfig } from '../config/runtime';
+import { loadKakaoAuthSdk } from '../lib/kakaoAuth';
 import { authApi, type SocialLoginResult, type SocialProvider } from './p0Api';
 
 const callbackPath: Record<SocialProvider, string> = {
@@ -10,12 +11,6 @@ function getRedirectUri(provider: SocialProvider) {
   return `${window.location.origin}${callbackPath[provider]}`;
 }
 
-function getClientId(provider: SocialProvider) {
-  return provider === 'KAKAO'
-    ? runtimeConfig.oauth.kakaoRestApiKey
-    : runtimeConfig.oauth.googleWebClientId;
-}
-
 export function getOAuthProviderFromPath(pathname: string): SocialProvider | null {
   if (pathname === callbackPath.KAKAO) return 'KAKAO';
   if (pathname === callbackPath.GOOGLE) return 'GOOGLE';
@@ -23,27 +18,26 @@ export function getOAuthProviderFromPath(pathname: string): SocialProvider | nul
 }
 
 export async function beginSocialLogin(provider: SocialProvider) {
-  const clientId = getClientId(provider);
-  if (!clientId) {
-    throw new Error(`${provider === 'KAKAO' ? '카카오 REST API 키' : 'Google 웹 클라이언트 ID'}가 설정되지 않았습니다.`);
-  }
-
   const { state } = await authApi.issueOAuthState(provider);
   const redirectUri = getRedirectUri(provider);
-  const authorizeUrl = new URL(
-    provider === 'KAKAO'
-      ? 'https://kauth.kakao.com/oauth/authorize'
-      : 'https://accounts.google.com/o/oauth2/v2/auth',
-  );
+
+  if (provider === 'KAKAO') {
+    const kakao = await loadKakaoAuthSdk(runtimeConfig.oauth.kakaoJavaScriptKey);
+    kakao.Auth.authorize({ redirectUri, state });
+    return;
+  }
+
+  const clientId = runtimeConfig.oauth.googleWebClientId;
+  if (!clientId) throw new Error('Google 웹 클라이언트 ID가 설정되지 않았습니다.');
+
+  const authorizeUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authorizeUrl.searchParams.set('client_id', clientId);
   authorizeUrl.searchParams.set('redirect_uri', redirectUri);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('state', state);
 
-  if (provider === 'GOOGLE') {
-    authorizeUrl.searchParams.set('scope', 'openid');
-    authorizeUrl.searchParams.set('prompt', 'select_account');
-  }
+  authorizeUrl.searchParams.set('scope', 'openid');
+  authorizeUrl.searchParams.set('prompt', 'select_account');
 
   window.location.assign(authorizeUrl.toString());
 }

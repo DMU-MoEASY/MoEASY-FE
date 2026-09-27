@@ -14,10 +14,22 @@ function isStandalone() {
     || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+function isMobileDevice() {
+  const mobileUserAgent = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const ipadDesktopMode = /macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
+  return mobileUserAgent || ipadDesktopMode;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
 export function PwaPrompt() {
+  const [isMobile] = useState(isMobileDevice);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(dismissedKey) === 'true');
-  const [isIos] = useState(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
+  const [isIos] = useState(isIosDevice);
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
@@ -25,6 +37,8 @@ export function PwaPrompt() {
   } = useRegisterSW();
 
   useEffect(() => {
+    if (!isMobile) return undefined;
+
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as BeforeInstallPromptEvent);
@@ -37,7 +51,7 @@ export function PwaPrompt() {
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onInstalled);
     };
-  }, []);
+  }, [isMobile]);
 
   const dismissInstall = () => {
     sessionStorage.setItem(dismissedKey, 'true');
@@ -50,6 +64,8 @@ export function PwaPrompt() {
     await installPrompt.userChoice;
     setInstallPrompt(null);
   };
+
+  if (!isMobile) return null;
 
   if (needRefresh) {
     return (

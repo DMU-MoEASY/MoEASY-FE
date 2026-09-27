@@ -1,34 +1,16 @@
 import { useState } from 'react';
-import { ArrowRight, CalendarDays, Eye, EyeOff, LoaderCircle, Lock, Mail, MapPin, Sparkles, Users } from 'lucide-react';
-import { isApiMode } from '../config/runtime';
+import { CalendarDays, LoaderCircle, MapPin, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import { beginSocialLogin } from '../services/oauth';
 import type { SocialProvider } from '../services/p0Api';
 
-interface LoginPageProps { onLogin: () => void; onSignupClick: () => void; }
+interface LoginPageProps { onSignupClick: () => void; }
 
-export function LoginPage({ onLogin, onSignupClick }: LoginPageProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+export function LoginPage({ onSignupClick }: LoginPageProps) {
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [loginError, setLoginError] = useState('');
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!email || !password) return;
-    if (isApiMode) {
-      setLoginError('현재 백엔드는 이메일 로그인을 제공하지 않습니다. 카카오 또는 Google 로그인을 이용해주세요.');
-      return;
-    }
-    onLogin();
-  };
 
   const startSocialLogin = async (provider: SocialProvider) => {
     setLoginError('');
-    if (!isApiMode) {
-      onLogin();
-      return;
-    }
-
     try {
       setSocialLoading(provider);
       await beginSocialLogin(provider);
@@ -61,18 +43,12 @@ export function LoginPage({ onLogin, onSignupClick }: LoginPageProps) {
             <p className="text-sm font-semibold text-primary">WELCOME BACK</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">다시 만나서 반가워요.</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">내 모임의 새로운 소식을 확인해보세요.</p>
-            <div className="mt-9 grid gap-3 sm:grid-cols-2">
-              <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('KAKAO')} className="flex items-center justify-center gap-2 rounded-xl bg-[#FEE500] px-4 py-3.5 text-sm font-semibold text-[#181600] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'KAKAO' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-[#FEE500]">K</span>}카카오</button>
-              <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('GOOGLE')} className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold ring-1 ring-black/10 transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'GOOGLE' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <span className="font-bold text-[#4285F4]">G</span>}Google</button>
+            <div className="mt-9 space-y-3">
+              <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('KAKAO')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] px-4 py-4 text-sm font-semibold text-[#181600] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'KAKAO' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-[#FEE500]">K</span>}카카오로 로그인</button>
+              <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('GOOGLE')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-4 text-sm font-semibold ring-1 ring-black/10 transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'GOOGLE' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="font-bold text-[#4285F4]">G</span>}Google로 로그인</button>
             </div>
             {loginError && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{loginError}</p>}
-            <div className="my-7 flex items-center gap-4"><span className="h-px flex-1 bg-border"/><span className="text-xs text-muted-foreground">이메일로 계속하기</span><span className="h-px flex-1 bg-border"/></div>
-            <form onSubmit={submit} className="space-y-4">
-              <Field icon={<Mail />}><input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일 주소" className="w-full bg-transparent py-4 outline-none" /></Field>
-              <Field icon={<Lock />} action={<button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-muted-foreground">{showPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}</button>}><input type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호" className="w-full bg-transparent py-4 outline-none" /></Field>
-              <div className="flex justify-end"><button type="button" className="text-xs font-medium text-muted-foreground hover:text-foreground">비밀번호를 잊으셨나요?</button></div>
-              <button type="submit" className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#101828] py-4 text-sm font-semibold text-white transition hover:bg-primary">로그인 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></button>
-            </form>
+            <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><span>MoEasy는 비밀번호를 별도로 저장하지 않으며 카카오 또는 Google 계정으로 안전하게 연결됩니다.</span></div>
             <p className="mt-8 text-center text-sm text-muted-foreground">아직 계정이 없나요? <button onClick={onSignupClick} className="font-semibold text-foreground hover:text-primary">무료로 시작하기</button></p>
           </div>
         </section>
@@ -83,4 +59,3 @@ export function LoginPage({ onLogin, onSignupClick }: LoginPageProps) {
 
 function BrandLogo({ className }: { className: string }) { return <img src="/brand/moeasy-logo.png" alt="MoEasy" className={`${className} w-auto object-contain`} />; }
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) { return <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur"><span className="[&>svg]:h-4 [&>svg]:w-4 text-white/70">{icon}</span><strong className="mt-4 block text-xl">{value}</strong><span className="mt-1 block text-xs text-white/55">{label}</span></div>; }
-function Field({ icon, action, children }: { icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) { return <label className="flex items-center gap-3 rounded-xl bg-[#F6F7F9] px-4 ring-1 ring-transparent transition focus-within:bg-white focus-within:ring-primary/40"><span className="[&>svg]:h-4 [&>svg]:w-4 text-muted-foreground">{icon}</span>{children}{action}</label>; }

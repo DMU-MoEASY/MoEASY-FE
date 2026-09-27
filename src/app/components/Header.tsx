@@ -1,14 +1,13 @@
 import { Bell, MessageCircle, ChevronDown, Search } from 'lucide-react';
-import { useState } from 'react';
 
 interface HeaderProps {
   onNotificationClick?: () => void;
   onDMClick?: () => void;
+  activityRegion: string;
+  onRegionClick?: () => void;
 }
 
-export function Header({ onNotificationClick, onDMClick }: HeaderProps) {
-  const [currentLocation, setCurrentLocation] = useState('강남구');
-
+export function Header({ onNotificationClick, onDMClick, activityRegion, onRegionClick }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 lg:left-[272px] bg-background/85 backdrop-blur-xl z-40">
       <div className="max-w-[1440px] mx-auto px-4 lg:px-8 h-[72px] flex items-center justify-between">
@@ -20,12 +19,12 @@ export function Header({ onNotificationClick, onDMClick }: HeaderProps) {
 
         {/* Location */}
         <button
-          onClick={() => alert('위치 변경')}
+          onClick={onRegionClick}
           className="hidden items-center gap-2 hover:bg-card px-2 py-1.5 rounded-xl transition-colors sm:flex"
         >
           <div className="text-left">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">My neighborhood</p>
-            <p className="text-sm font-semibold">서울 {currentLocation}</p>
+            <p className="text-sm font-semibold">{activityRegion || '활동 지역 설정'}</p>
           </div>
           <ChevronDown className="w-4 h-4" />
         </button>

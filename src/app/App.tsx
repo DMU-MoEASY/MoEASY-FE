@@ -1312,6 +1312,8 @@ export default function App() {
 
       <div className="lg:pl-[272px]">
         <Header
+          activityRegion={userProfile.activityRegion}
+          onRegionClick={() => navigateToTab('profile')}
           onNotificationClick={() => setShowNotifications(true)}
           onDMClick={() => setShowDMList(true)}
         />

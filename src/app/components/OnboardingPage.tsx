@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, MapPin, Sparkles, UserRound } from 'lucide-react';
-import { onboardingInterestOptions, type UserProfile } from '../services/userProfile';
+import { activityRegionGroups, activityRegionOptions, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
 
 interface OnboardingPageProps {
   initialProfile: UserProfile;
@@ -119,13 +119,22 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                   <span className="mb-2 block text-sm font-semibold text-slate-800">주 활동 지역</span>
                   <span className="relative block">
                     <MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
+                    <select
                       required
                       value={activityRegion}
                       onChange={(event) => setActivityRegion(event.target.value)}
-                      placeholder="예: 서울 강남구"
-                      className="form-input pl-11"
-                    />
+                      className="form-input appearance-none pl-11"
+                    >
+                      <option value="">지역을 선택해주세요</option>
+                      {activityRegion && !activityRegionOptions.includes(activityRegion) && (
+                        <option value={activityRegion}>현재 설정 · {activityRegion}</option>
+                      )}
+                      {activityRegionGroups.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
                   </span>
                   <p className="mt-2 text-xs text-slate-400">주변 모임 추천의 기본 지역으로 사용돼요.</p>
                 </label>

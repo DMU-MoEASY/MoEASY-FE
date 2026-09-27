@@ -31,6 +31,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
   const [totalAmount, setTotalAmount] = useState('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(['me']);
   const [rawText, setRawText] = useState('');
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -62,6 +63,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
     setStatus('ready');
     setProgress(0);
     setRawText('');
+    setOcrConfidence(null);
   };
 
   const runOcr = async () => {
@@ -86,6 +88,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
       setPaidAt(result.paidAt);
       setTotalAmount(result.totalAmount ? String(result.totalAmount) : '');
       setRawText(result.rawText);
+      setOcrConfidence(result.confidence);
       setProgress(100);
       setStatus('done');
     } catch (ocrError) {
@@ -120,6 +123,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
     setTotalAmount('');
     setSelectedMemberIds(['me']);
     setRawText('');
+    setOcrConfidence(null);
   };
 
   const toggleMember = (memberId: string) => {
@@ -146,7 +150,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
       <div className="mx-auto max-w-6xl px-4 pb-20 pt-9 sm:px-6 sm:pt-12">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Smart settlement · OCR</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">영수증을 촬영하거나 올려주세요</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">이미지는 서버로 전송되지 않고 현재 기기의 브라우저에서 분석돼요. 인식 결과는 직접 수정할 수 있습니다.</p>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">이미지는 서버로 전송되지 않고 현재 기기의 브라우저에서 선명도와 대비를 자동 보정한 뒤 분석해요. 인식 결과는 직접 수정할 수 있습니다.</p>
 
         <div className="mt-9 grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
           <section className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-black/[0.05] sm:p-6">
@@ -179,7 +183,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
 
           <section className="space-y-5">
             <div className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-black/[0.05] sm:p-7">
-              <div className="flex items-center justify-between"><div><p className="text-xs font-semibold text-blue-600">EXTRACTED DATA</p><h2 className="mt-1 text-xl font-semibold text-slate-900">인식 결과</h2></div>{status === 'done' && <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" />분석 완료</span>}</div>
+              <div className="flex items-center justify-between"><div><p className="text-xs font-semibold text-blue-600">EXTRACTED DATA</p><h2 className="mt-1 text-xl font-semibold text-slate-900">인식 결과</h2></div>{status === 'done' && <OcrQualityBadge confidence={ocrConfidence} />}</div>
               {status === 'idle' || status === 'ready' || status === 'recognizing' ? <div className="mt-8 flex min-h-[290px] flex-col items-center justify-center rounded-2xl bg-slate-50 text-center"><FileImage className="h-8 w-8 text-slate-300" /><p className="mt-4 text-sm font-medium text-slate-500">OCR 분석이 끝나면 결과가 표시돼요.</p></div> : <div className="mt-7 grid gap-5 sm:grid-cols-2">
                 <OcrField label="사용처"><input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="상호명을 확인해주세요" className="form-input" /></OcrField>
                 <OcrField label="결제 일시"><input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} className="form-input" /></OcrField>
@@ -196,6 +200,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
                   {members === 0 && <p role="alert" className="mt-3 text-xs font-medium text-red-600">정산 대상을 한 명 이상 선택해주세요.</p>}
                 </div>
               </div>}
+              {status === 'done' && ocrConfidence !== null && ocrConfidence < 58 && <div className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">글자가 흐리거나 빛 반사가 감지됐어요. 인식 결과를 직접 수정하거나, 영수증 전체가 보이도록 정면에서 다시 촬영하면 더 정확해집니다.</div>}
             </div>
 
             <div className="rounded-[26px] bg-[#101828] p-6 text-white sm:p-7">
@@ -214,4 +219,15 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
 
 function OcrField({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>;
+}
+
+function OcrQualityBadge({ confidence }: { confidence: number | null }) {
+  if (confidence === null) return null;
+  const quality = confidence >= 75
+    ? { label: '인식 품질 높음', className: 'bg-emerald-50 text-emerald-700' }
+    : confidence >= 58
+      ? { label: '인식 품질 보통', className: 'bg-blue-50 text-blue-700' }
+      : { label: '결과 확인 필요', className: 'bg-amber-50 text-amber-700' };
+
+  return <span title={`OCR 신뢰도 ${confidence}%`} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${quality.className}`}><CheckCircle2 className="h-4 w-4" />{quality.label}</span>;
 }

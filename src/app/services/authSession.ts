@@ -1,32 +1,23 @@
 import { persistenceStore } from '../lib/persistence';
 import type { SocialLoginResult, SocialProvider } from './p0Api';
 
-export type AuthSession =
-  | {
-      mode: 'demo';
-      onboardingCompleted: true;
-    }
-  | {
-      mode: 'social';
-      provider: SocialProvider;
-      memberId: number;
-      onboardingCompleted: boolean;
-    };
+export type AuthSession = {
+  mode: 'social';
+  provider: SocialProvider;
+  memberId: number;
+  onboardingCompleted: boolean;
+};
 
 export const AUTH_SESSION_KEY = 'moeasy:authSession';
 const LEGACY_LOGIN_KEY = 'moeasy:isLoggedIn';
 
 export function getInitialAuthSession(): AuthSession | null {
-  const savedSession = persistenceStore.read<AuthSession>(AUTH_SESSION_KEY);
-  if (savedSession) return savedSession;
+  const savedSession = persistenceStore.read<AuthSession | { mode?: string }>(AUTH_SESSION_KEY);
+  if (savedSession?.mode === 'social') return savedSession as AuthSession;
 
-  return persistenceStore.read<boolean>(LEGACY_LOGIN_KEY)
-    ? { mode: 'demo', onboardingCompleted: true }
-    : null;
-}
-
-export function createDemoAuthSession(onboardingCompleted = true): AuthSession {
-  return { mode: 'demo', onboardingCompleted };
+  persistenceStore.remove(AUTH_SESSION_KEY);
+  persistenceStore.remove(LEGACY_LOGIN_KEY);
+  return null;
 }
 
 export function createSocialAuthSession(

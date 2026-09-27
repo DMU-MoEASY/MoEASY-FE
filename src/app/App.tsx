@@ -51,7 +51,6 @@ import { CommunityFeed } from './components/CommunityFeed';
 import { PhotoGalleryPage } from './components/PhotoGalleryPage';
 import { NotificationCenter } from './components/NotificationCenter';
 import { LoginPage } from './components/LoginPage';
-import { SignupPage } from './components/SignupPage';
 import { DMListPage } from './components/DMListPage';
 import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
@@ -60,14 +59,12 @@ import { OnboardingPage } from './components/OnboardingPage';
 import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
 import {
   AUTH_SESSION_KEY,
-  createDemoAuthSession,
   createSocialAuthSession,
   getInitialAuthSession,
   removeLegacyLoginState,
   type AuthSession,
 } from './services/authSession';
 import { defaultUserProfile, USER_PROFILE_KEY, type UserProfile } from './services/userProfile';
-import { isApiMode } from './config/runtime';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
 type Meetup = {
@@ -492,13 +489,7 @@ export default function App() {
     if (showSignup) {
       return (
         <SignupExperience
-          onSignup={() => {
-            setUserProfile(defaultUserProfile);
-            setAuthSession(createDemoAuthSession(false));
-            setShowSignup(false);
-          }}
           onBack={() => setShowSignup(false)}
-          apiMode={isApiMode}
           onSocialSignup={beginSocialLogin}
         />
       );
@@ -506,7 +497,6 @@ export default function App() {
 
     return (
       <LoginPage
-        onLogin={() => setAuthSession(createDemoAuthSession())}
         onSignupClick={() => setShowSignup(true)}
       />
     );

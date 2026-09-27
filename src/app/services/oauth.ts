@@ -3,8 +3,8 @@ import { loadKakaoAuthSdk } from '../lib/kakaoAuth';
 import { authApi, type SocialLoginResult, type SocialProvider } from './p0Api';
 
 const callbackPath: Record<SocialProvider, string> = {
-  KAKAO: '/auth/kakao/callback',
-  GOOGLE: '/auth/google/callback',
+  KAKAO: '/oauth/kakao/callback',
+  GOOGLE: '/oauth/google/callback',
 };
 
 function getRedirectUri(provider: SocialProvider) {

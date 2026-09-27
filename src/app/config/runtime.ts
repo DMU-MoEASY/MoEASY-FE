@@ -4,7 +4,7 @@ const configuredMode = import.meta.env.VITE_DATA_SOURCE;
 const dataSource: DataSourceMode = configuredMode === 'api' ? 'api' : 'local';
 
 export const runtimeConfig = {
-  apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, ''),
+  apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'https://jeonggyul.duckdns.org/api/v1').replace(/\/$/, ''),
   dataSource,
   oauth: {
     kakaoRestApiKey: import.meta.env.VITE_KAKAO_REST_API_KEY || '',

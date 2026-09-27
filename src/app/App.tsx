@@ -57,6 +57,7 @@ import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { OnboardingPage } from './components/OnboardingPage';
 import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
+import { authApi } from './services/p0Api';
 import {
   AUTH_SESSION_KEY,
   createSocialAuthSession,
@@ -444,6 +445,15 @@ export default function App() {
     setActiveTab(tab);
     setShowMeetupDetail(false);
     changePath(tabPaths[tab] ?? '/');
+  };
+
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      setAuthSession(null);
+      navigateToTab('home');
+    }
   };
 
   const openMeetup = (meetup: Meetup) => {
@@ -1682,10 +1692,7 @@ export default function App() {
                   openMeetup(meetup);
                 }
               }}
-              onLogout={() => {
-                setAuthSession(null);
-                navigateToTab('home');
-              }}
+              onLogout={() => void logout()}
             />
           )}
 
@@ -1760,8 +1767,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (confirm('로그아웃 하시겠습니까?')) {
-                        setAuthSession(null);
-                        setActiveTab('home');
+                        void logout();
                       }
                     }}
                     className="w-full py-3 bg-secondary border-2 border-border text-foreground rounded-2xl transition-transform active:scale-95 font-medium"

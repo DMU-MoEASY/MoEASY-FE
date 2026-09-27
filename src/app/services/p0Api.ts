@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/apiClient';
+import { apiRequest, clearCsrfToken, ensureCsrfToken } from '../lib/apiClient';
 
 export type Id = string;
 export type RsvpStatus = 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED';
@@ -68,17 +68,26 @@ export type SocialLoginResult = {
 };
 
 export const authApi = {
-  issueOAuthState: (provider: SocialProvider, correlationId: string) => apiRequest<{ state: string }>(
+  prepareCsrf: () => ensureCsrfToken(true),
+  issueOAuthState: (provider: SocialProvider) => apiRequest<{ state: string }>(
     '/auth/oauth/states',
-    { method: 'POST', body: { provider, correlationId } },
+    { method: 'POST', body: { provider } },
   ),
   loginWithSocial: (
     provider: SocialProvider,
-    input: { code: string; state: string; redirectUri: string; correlationId: string },
+    input: { code: string; state: string },
   ) => apiRequest<SocialLoginResult>(
     `/auth/oauth/${provider.toLowerCase()}`,
     { method: 'POST', body: input },
   ),
+  reissue: () => apiRequest<void>('/auth/reissue', { method: 'POST' }),
+  logout: async () => {
+    try {
+      await apiRequest<void>('/auth/logout', { method: 'POST' });
+    } finally {
+      clearCsrfToken();
+    }
+  },
 };
 
 export const userApi = {

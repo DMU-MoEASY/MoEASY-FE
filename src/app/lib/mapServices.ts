@@ -21,7 +21,7 @@ const appendScript = (id: string, src: string) => {
 };
 
 export const hasGoogleMapsKey = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
-export const hasKakaoMapsKey = Boolean(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY);
+export const hasKakaoMapsKey = Boolean(import.meta.env.VITE_KAKAO_MAP_JAVASCRIPT_KEY);
 
 export function loadGoogleMaps() {
   if (window.google?.maps) return Promise.resolve(window.google);
@@ -51,7 +51,7 @@ export function loadKakaoPlaces() {
 
   kakaoPromise = new Promise((resolve, reject) => {
     const params = new URLSearchParams({
-      appkey: import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY,
+      appkey: import.meta.env.VITE_KAKAO_MAP_JAVASCRIPT_KEY,
       libraries: 'services',
       autoload: 'false',
     });

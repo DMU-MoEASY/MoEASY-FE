@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Camera, Check, Clock3, Heart, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Send, Settings2, Share2, Trash2, Users, Wallet, X } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
+import {
+  INITIAL_CLUB_SCHEDULES,
+  meetupScheduleKey,
+  patchLinkedChatMessage,
+  syncScheduleAttendance,
+  type ClubSchedule,
+} from '../services/meetupOperations';
 
 type Meetup = { id: number; name: string; region: string; description: string; members: number; category: string };
-type ClubSchedule = { id: number; date: string; dateValue: string; title: string; time: string; place: string; attending: boolean };
 type BoardPost = { id: number; author: string; content: string; time: string; likes: number; liked: boolean };
 
 interface MeetupDetailExperienceProps {
@@ -11,12 +17,6 @@ interface MeetupDetailExperienceProps {
   onChat: () => void; onSchedule: () => void; onGallery: () => void; onMembers: () => void;
   onFinance: () => void; onRequests: () => void; onReceipt: () => void;
 }
-
-const initialSchedules: ClubSchedule[] = [
-  { id: 1, date: '9월 9일 화요일', dateValue: '2026-09-09', title: '주간 정기 모임', time: '19:30', place: '반포 한강공원', attending: true },
-  { id: 2, date: '9월 14일 월요일', dateValue: '2026-09-14', title: '주말 특별 모임', time: '07:00', place: '올림픽공원', attending: false },
-  { id: 3, date: '9월 20일 일요일', dateValue: '2026-09-20', title: '신입 멤버 환영회', time: '18:00', place: '강남역 11번 출구', attending: true },
-];
 
 const initialPosts: BoardPost[] = [
   { id: 1, author: '김철수', content: '이번 모임도 즐거웠어요! 다음 주에도 참여합니다 🙌', time: '10분 전', likes: 12, liked: false },
@@ -29,9 +29,9 @@ export function MeetupDetailExperience(props: MeetupDetailExperienceProps) {
   const { meetup, activeTab, onTabChange, onBack, onChat, onSchedule, onGallery, onMembers, onFinance, onRequests, onReceipt } = props;
   const tabs = ['홈', '게시판', '일정', '회비'];
   const [currentTab, setCurrentTab] = useState(activeTab);
-  const [schedules, setSchedules] = usePersistentState(`moeasy:meetup:${meetup.id}:schedules`, initialSchedules);
+  const [schedules, setSchedules] = usePersistentState(meetupScheduleKey(meetup.id), INITIAL_CLUB_SCHEDULES);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | number | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState(emptyScheduleDraft);
   const [posts, setPosts] = usePersistentState<BoardPost[]>(`moeasy:meetup:${meetup.id}:posts`, initialPosts);
   const [postDraft, setPostDraft] = useState('');
@@ -63,6 +63,17 @@ export function MeetupDetailExperience(props: MeetupDetailExperienceProps) {
     setShowScheduleForm(false);
   };
 
+  const toggleScheduleAttendance = (scheduleId: string | number) => {
+    const schedule = schedules.find(item => item.id === scheduleId);
+    if (!schedule) return;
+    const attending = !schedule.attending;
+    setSchedules(current => current.map(item => item.id === scheduleId ? { ...item, attending } : item));
+    if (schedule.chatMessageId) {
+      syncScheduleAttendance(meetup.id, schedule.chatMessageId, attending);
+      patchLinkedChatMessage(meetup.id, schedule.chatMessageId, { attending });
+    }
+  };
+
   const changeTab = (tab: string) => {
     setCurrentTab(tab);
     onTabChange(tab);
@@ -92,7 +103,7 @@ export function MeetupDetailExperience(props: MeetupDetailExperienceProps) {
       <div className="space-y-8">
         {currentTab === '홈' && <HomePanel meetup={meetup} schedules={schedules} onOpenSchedules={() => changeTab('일정')} onSchedule={onSchedule} onGallery={onGallery} />}
         {currentTab === '게시판' && <BoardPanel posts={posts} draft={postDraft} onDraftChange={setPostDraft} onSubmit={addPost} onToggleLike={(id) => setPosts(current => current.map(post => post.id === id ? {...post, liked: !post.liked, likes: post.likes + (post.liked ? -1 : 1)} : post))} />}
-        {currentTab === '일정' && <SchedulePanel schedules={schedules} showForm={showScheduleForm} editingId={editingScheduleId} draft={scheduleDraft} onDraftChange={setScheduleDraft} onToggleForm={() => showScheduleForm ? closeScheduleForm() : setShowScheduleForm(true)} onSubmit={addSchedule} onToggleAttendance={(id) => setSchedules(current => current.map(item => item.id === id ? {...item, attending: !item.attending} : item))} onEdit={editSchedule} onDelete={(id) => setSchedules(current => current.filter(item => item.id !== id))} onCoordinate={onSchedule} />}
+        {currentTab === '일정' && <SchedulePanel schedules={schedules} showForm={showScheduleForm} editingId={editingScheduleId} draft={scheduleDraft} onDraftChange={setScheduleDraft} onToggleForm={() => showScheduleForm ? closeScheduleForm() : setShowScheduleForm(true)} onSubmit={addSchedule} onToggleAttendance={toggleScheduleAttendance} onEdit={editSchedule} onDelete={(id) => setSchedules(current => current.filter(item => item.id !== id))} onCoordinate={onSchedule} />}
         {currentTab === '회비' && <FinancePanel paid={duesPaid} onTogglePaid={() => setDuesPaid(value => !value)} onOpenFinance={onFinance} onReceipt={onReceipt} />}
       </div>
       <aside className="space-y-4"><div className="rounded-[24px] bg-card p-5 ring-1 ring-black/[0.06]"><p className="text-xs font-semibold text-primary">NEXT MEETUP</p><h3 className="mt-3 text-lg font-semibold">{schedules[0]?.date}</h3><p className="mt-1 text-sm text-muted-foreground">{schedules[0]?.time} · {schedules[0]?.place}</p><button onClick={() => changeTab('일정')} className="mt-5 w-full rounded-xl bg-[#101828] py-3 text-sm font-semibold text-white">일정 자세히 보기</button></div><div className="rounded-[24px] bg-card p-5 ring-1 ring-black/[0.06]"><div className="flex items-center justify-between"><h3 className="font-semibold">운영진 도구</h3><Settings2 className="h-4 w-4 text-muted-foreground" /></div><div className="mt-3 space-y-1"><ToolButton icon={<Users />} label="가입 신청 3건" onClick={onRequests}/><ToolButton icon={<Users />} label="멤버 관리" onClick={onMembers}/><ToolButton icon={<Wallet />} label="회비 관리" onClick={onFinance}/><ToolButton icon={<Receipt />} label="정산 등록" onClick={onReceipt}/></div></div></aside>
@@ -112,14 +123,14 @@ function BoardPanel({ posts, draft, onDraftChange, onSubmit, onToggleLike }: { p
 function SchedulePanel({ schedules, showForm, editingId, draft, onDraftChange, onToggleForm, onSubmit, onToggleAttendance, onEdit, onDelete, onCoordinate }: {
   schedules: ClubSchedule[];
   showForm: boolean;
-  editingId: number | null;
+  editingId: string | number | null;
   draft: { title: string; date: string; time: string; place: string };
   onDraftChange: (value: { title: string; date: string; time: string; place: string }) => void;
   onToggleForm: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  onToggleAttendance: (id: number) => void;
+  onToggleAttendance: (id: string | number) => void;
   onEdit: (schedule: ClubSchedule) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string | number) => void;
   onCoordinate: () => void;
 }) {
   return <section>

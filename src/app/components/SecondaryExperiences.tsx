@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, LoaderCircle, MapPin, MessageCircle, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, LoaderCircle, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import type { SocialProvider } from '../services/p0Api';
@@ -121,11 +121,6 @@ export function CreateMeetupExperience({ onBack, onCreate }: { onBack: () => voi
       <aside className="space-y-4"><div className="overflow-hidden rounded-[24px] bg-[#101828] text-white"><div className="relative h-44"><img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=800&q=85" alt="모임 미리보기" className="h-full w-full object-cover opacity-70"/><div className="absolute inset-0 bg-gradient-to-t from-[#101828] to-transparent"/></div><div className="p-5"><span className="text-xs text-[#8FAAFF]">PREVIEW</span><h3 className="mt-2 text-xl font-semibold">{name.trim() || `새로운 ${category} 모임`}</h3><p className="mt-2 line-clamp-2 text-sm text-slate-400">{description.trim() || '모임 정보가 여기에 표시됩니다.'}</p>{region.trim()&&<p className="mt-3 flex items-center gap-1 text-xs text-slate-300"><MapPin className="h-3 w-3"/>{region} · 최대 {maxMembers || 0}명</p>}</div></div><div className="rounded-[22px] bg-[#E8EEFF] p-5"><Sparkles className="h-5 w-5 text-primary"/><h3 className="mt-4 font-semibold">좋은 소개의 기준</h3><p className="mt-2 text-sm leading-6 text-slate-600">누구를 위한 모임인지, 언제 얼마나 자주 만나는지 적으면 가입률이 높아져요.</p></div></aside>
     </div>
   </PageFrame>;
-}
-
-export function ChatExperience({ onBack }: { onBack: () => void }) {
-  const [message,setMessage]=useState('');
-  return <div className="flex min-h-screen flex-col bg-[#EEF1F5]"><header className="sticky top-0 z-50 bg-[#101828] text-white"><div className="mx-auto flex h-[72px] max-w-5xl items-center justify-between px-4"><button onClick={onBack} className="rounded-full p-2 hover:bg-white/10"><ArrowLeft className="h-5 w-5"/></button><div className="text-center"><h1 className="font-semibold">강남 러닝 크루</h1><p className="text-[11px] text-slate-400">145명 · 12명 접속 중</p></div><button className="rounded-full p-2 hover:bg-white/10"><MoreHorizontal className="h-5 w-5"/></button></div></header><main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6"><div className="mb-6 self-center rounded-full bg-white px-3 py-1 text-[11px] text-muted-foreground">오늘</div><div className="space-y-5"><ChatBubble avatar="CH" name="김철수" text="오늘 저녁 러닝 장소가 달빛광장으로 변경됐어요!" time="오후 2:31"/><ChatBubble avatar="YH" name="이영희" text="확인했습니다. 7시 20분까지 갈게요 🙌" time="오후 2:34"/><div className="ml-auto max-w-[78%] rounded-[20px] rounded-br-md bg-primary px-4 py-3 text-sm leading-6 text-white shadow-sm">좋아요! 저는 물이랑 간단한 간식 챙겨갈게요.<span className="ml-2 text-[10px] text-white/60">오후 2:36</span></div></div></main><footer className="sticky bottom-0 border-t border-border bg-white/90 p-3 backdrop-blur-xl"><div className="mx-auto flex max-w-5xl items-end gap-2"><button className="rounded-full p-3 text-muted-foreground hover:bg-secondary"><Paperclip className="h-5 w-5"/></button><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={1} placeholder="메시지를 입력하세요" className="max-h-28 min-h-12 flex-1 resize-none rounded-2xl bg-secondary px-4 py-3.5 text-sm outline-none"/><button className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white"><Send className="h-5 w-5"/></button></div></footer></div>;
 }
 
 type DuesMember = {
@@ -307,5 +302,4 @@ export function SchedulerExperience({ onBack }: { onBack: () => void }) {
 }
 
 function FormField({label,children}:{label:string;children:React.ReactNode}) { return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>; }
-function ChatBubble({avatar,name,text,time}:{avatar:string;name:string;text:string;time:string}) { return <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#101828] text-[10px] font-semibold text-white">{avatar}</span><div><p className="mb-1 text-xs text-muted-foreground">{name}</p><div className="max-w-md rounded-[20px] rounded-tl-md bg-white px-4 py-3 text-sm leading-6 shadow-sm">{text}<span className="ml-2 text-[10px] text-muted-foreground">{time}</span></div></div></div>; }
 function Info({label,value}:{label:string;value:string}) { return <div className="rounded-2xl bg-secondary p-4"><p className="text-xs text-muted-foreground">{label}</p><strong className="mt-2 block text-sm">{value}</strong></div>; }

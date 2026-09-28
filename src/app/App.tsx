@@ -15,12 +15,12 @@ import {
   GalleryExperience,
   RequestsExperience,
   CreateMeetupExperience,
-  ChatExperience,
   FinanceExperience,
   MembersExperience,
   ReceiptExperience,
   SchedulerExperience,
 } from './components/SecondaryExperiences';
+import { GroupChatExperience } from './components/GroupChatExperience';
 import { SearchBar } from './components/SearchBar';
 import { MeetupCard } from './components/MeetupCard';
 import { ActiveMeetupCard } from './components/ActiveMeetupCard';
@@ -598,10 +598,16 @@ export default function App() {
   }
 
   if (showGroupChat) {
-    return <ChatExperience onBack={() => {
-      setShowGroupChat(false);
-      setShowMeetupDetail(true);
-    }} />;
+    return <GroupChatExperience
+      meetupId={selectedMeetup.id}
+      meetupName={selectedMeetup.name}
+      memberCount={selectedMeetup.members}
+      currentUserName={userProfile.nickname}
+      onBack={() => {
+        setShowGroupChat(false);
+        setShowMeetupDetail(true);
+      }}
+    />;
   }
 
   if (false && showGroupChat) {

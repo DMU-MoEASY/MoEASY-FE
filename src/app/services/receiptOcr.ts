@@ -22,22 +22,20 @@ export type OcrWorkerHandle = {
 type ParsedReceipt = Omit<ReceiptOcrResult, 'confidence' | 'usedEnhancedImage'>;
 
 const totalKeywords = [
-  { keyword: '합계', label: '합계', score: 160 },
-  { keyword: '총 금액', label: '총 금액', score: 148 },
-  { keyword: '총액', label: '총액', score: 140 },
-  { keyword: '받을금액', label: '받을 금액', score: 130 },
-  { keyword: '결제금액', label: '결제 금액', score: 128 },
-  { keyword: '결제 금액', label: '결제 금액', score: 128 },
-  { keyword: '승인금액', label: '승인 금액', score: 126 },
-  { keyword: '승인 금액', label: '승인 금액', score: 126 },
-  { keyword: '청구금액', label: '청구 금액', score: 124 },
-  { keyword: '카드금액', label: '카드 금액', score: 122 },
-  { keyword: 'TOTAL', label: 'TOTAL', score: 112 },
+  { keywords: ['합계', '합게', '함계', '함게', '합꼐', '합재'], label: '합계', score: 160 },
+  { keywords: ['총금액'], label: '총 금액', score: 148 },
+  { keywords: ['총액'], label: '총액', score: 140 },
+  { keywords: ['받을금액'], label: '받을 금액', score: 130 },
+  { keywords: ['결제금액'], label: '결제 금액', score: 128 },
+  { keywords: ['승인금액'], label: '승인 금액', score: 126 },
+  { keywords: ['청구금액'], label: '청구 금액', score: 124 },
+  { keywords: ['카드금액'], label: '카드 금액', score: 122 },
+  { keywords: ['TOTAL'], label: 'TOTAL', score: 112 },
 ];
 const ignoredAmountWords = [
   '사업자', '등록번호', '승인번호', '카드번호', '거래번호', '주문번호', '영수증번호',
   '가맹점번호', '고객번호', '전화', 'TEL', '대표자', '일시', '날짜', '부가세', '부가가치세',
-  '소계', '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
+  '소계', 'SUBTOTAL', '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
 ];
 const ignoredStoreWords = ['영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자'];
 
@@ -47,7 +45,7 @@ export async function recognizeReceiptImage(
   onWorker: (worker: OcrWorkerHandle | null) => void,
 ): Promise<ReceiptOcrResult> {
   const { createWorker, PSM } = await import('tesseract.js');
-  let phase: 'setup' | 'enhanced' | 'fallback' = 'setup';
+  let phase: 'setup' | 'enhanced' | 'focused' | 'fallback' = 'setup';
   const worker = await createWorker(['kor', 'eng'], undefined, {
     logger: ({ progress, status }) => {
       if (status !== 'recognizing text') {
@@ -56,9 +54,11 @@ export async function recognizeReceiptImage(
       }
 
       if (phase === 'enhanced') {
-        onProgress(0.15 + progress * 0.55, '보정한 이미지에서 글자를 읽는 중');
+        onProgress(0.15 + progress * 0.4, '보정한 이미지에서 글자를 읽는 중');
+      } else if (phase === 'focused') {
+        onProgress(0.56 + progress * 0.22, '영수증 하단의 합계 영역을 다시 읽는 중');
       } else if (phase === 'fallback') {
-        onProgress(0.72 + progress * 0.27, '원본 이미지와 결과를 비교하는 중');
+        onProgress(0.79 + progress * 0.2, '원본 이미지와 결과를 비교하는 중');
       }
     },
   });
@@ -77,15 +77,18 @@ export async function recognizeReceiptImage(
     const enhanced = await worker.recognize(enhancedImage, { rotateAuto: true });
     const enhancedCandidate = createCandidate(enhanced.data.text, enhanced.data.confidence, true);
 
+    phase = 'focused';
+    const focusedImage = cropReceiptTotalRegion(enhancedImage);
+    const focused = await worker.recognize(focusedImage);
+    const focusedCandidate = createCandidate(focused.data.text, focused.data.confidence, true);
+
     phase = 'fallback';
     await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
     const original = await worker.recognize(image, { rotateAuto: true });
     const originalCandidate = createCandidate(original.data.text, original.data.confidence, false);
     onProgress(1, '더 정확한 인식 결과를 선택했어요');
 
-    return scoreCandidate(originalCandidate) > scoreCandidate(enhancedCandidate)
-      ? originalCandidate
-      : enhancedCandidate;
+    return mergeRecognitionCandidates([enhancedCandidate, focusedCandidate, originalCandidate]);
   } finally {
     await worker.terminate().catch(() => undefined);
     onWorker(null);
@@ -177,6 +180,57 @@ async function preprocessReceiptImage(image: File) {
   }
 }
 
+function cropReceiptTotalRegion(image: HTMLCanvasElement) {
+  const startY = Math.round(image.height * 0.38);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = Math.max(1, image.height - startY);
+  const context = canvas.getContext('2d');
+  if (!context) return image;
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, startY, image.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  applyAdaptiveThreshold(context, canvas.width, canvas.height);
+  return canvas;
+}
+
+function applyAdaptiveThreshold(context: CanvasRenderingContext2D, width: number, height: number) {
+  const imageData = context.getImageData(0, 0, width, height);
+  const stride = width + 1;
+  const integral = new Uint32Array(stride * (height + 1));
+
+  for (let y = 1; y <= height; y += 1) {
+    let rowSum = 0;
+    for (let x = 1; x <= width; x += 1) {
+      const offset = ((y - 1) * width + (x - 1)) * 4;
+      rowSum += imageData.data[offset] ?? 255;
+      integral[y * stride + x] = (integral[(y - 1) * stride + x] ?? 0) + rowSum;
+    }
+  }
+
+  const radius = Math.max(10, Math.round(Math.min(width, height) * 0.012));
+  for (let y = 0; y < height; y += 1) {
+    const top = Math.max(0, y - radius);
+    const bottom = Math.min(height - 1, y + radius);
+    for (let x = 0; x < width; x += 1) {
+      const left = Math.max(0, x - radius);
+      const right = Math.min(width - 1, x + radius);
+      const area = (right - left + 1) * (bottom - top + 1);
+      const sum = (integral[(bottom + 1) * stride + right + 1] ?? 0)
+        - (integral[top * stride + right + 1] ?? 0)
+        - (integral[(bottom + 1) * stride + left] ?? 0)
+        + (integral[top * stride + left] ?? 0);
+      const offset = (y * width + x) * 4;
+      const value = (imageData.data[offset] ?? 255) < sum / area - 11 ? 0 : 255;
+      imageData.data[offset] = value;
+      imageData.data[offset + 1] = value;
+      imageData.data[offset + 2] = value;
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
 function percentileFromHistogram(histogram: Uint32Array, total: number, percentile: number) {
   const target = total * percentile;
   let seen = 0;
@@ -206,6 +260,35 @@ function scoreCandidate(candidate: ReceiptOcrResult) {
     + (amountConfidence === 'high' ? 18 : amountConfidence === 'medium' ? 8 : 0);
 }
 
+function mergeRecognitionCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
+  const preferred = [...candidates].sort((left, right) => scoreCandidate(right) - scoreCandidate(left))[0];
+  if (!preferred) throw new Error('영수증 인식 결과를 비교할 수 없어요.');
+
+  const amounts = new Map<number, ReceiptAmountCandidate>();
+  candidates.flatMap(({ amountCandidates }) => amountCandidates).forEach((candidate) => {
+    const current = amounts.get(candidate.amount);
+    if (!current || scoreAmountCandidate(candidate) > scoreAmountCandidate(current)) {
+      amounts.set(candidate.amount, candidate);
+    }
+  });
+  const amountCandidates = [...amounts.values()]
+    .sort((left, right) => scoreAmountCandidate(right) - scoreAmountCandidate(left) || right.amount - left.amount)
+    .slice(0, 3);
+
+  return {
+    ...preferred,
+    totalAmount: amountCandidates[0]?.amount ?? preferred.totalAmount,
+    amountCandidates,
+  };
+}
+
+function scoreAmountCandidate(candidate: ReceiptAmountCandidate) {
+  const label = candidate.label.replace(/\s/g, '').replace('다음줄', '');
+  const keyword = totalKeywords.find(({ label: keywordLabel }) => keywordLabel.replace(/\s/g, '') === label);
+  const confidenceScore = candidate.confidence === 'high' ? 30 : candidate.confidence === 'medium' ? 15 : 0;
+  return (keyword?.score ?? 20) + confidenceScore;
+}
+
 type ScoredAmount = ReceiptAmountCandidate & { score: number };
 
 function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
@@ -213,7 +296,10 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
 
   lines.forEach((line, lineIndex) => {
     const upperLine = line.toUpperCase();
-    const keyword = totalKeywords.find(({ keyword: value }) => upperLine.includes(value));
+    const compactLine = normalizeLabelCharacters(upperLine);
+    const keyword = compactLine.includes('SUBTOTAL')
+      ? undefined
+      : totalKeywords.find(({ keywords }) => keywords.some((value) => compactLine.includes(value)));
     const lineAmounts = extractAmounts(line);
 
     lineAmounts.forEach(({ amount, hasCurrency, hasGrouping, digitLength, index }) => {
@@ -222,7 +308,7 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
       if (hasGrouping) score += 12;
       if (lineIndex >= lines.length * 0.55) score += 8;
       if (index >= line.length * 0.45) score += 4;
-      if (ignoredAmountWords.some((word) => upperLine.includes(word))) score -= keyword ? 28 : 95;
+      if (hasIgnoredAmountWord(compactLine)) score -= keyword ? 28 : 95;
       if (!hasGrouping && digitLength >= 8) score -= 100;
       if (looksLikeDateOrTime(line, amount)) score -= 100;
 
@@ -239,8 +325,8 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
 
     const nextLine = lines[lineIndex + 1];
     if (keyword && lineAmounts.length === 0 && nextLine) {
-      const nextUpperLine = nextLine.toUpperCase();
-      if (ignoredAmountWords.some((word) => nextUpperLine.includes(word))) return;
+      const nextUpperLine = normalizeLabelCharacters(nextLine);
+      if (hasIgnoredAmountWord(nextUpperLine)) return;
       extractAmounts(nextLine).forEach(({ amount, hasCurrency, hasGrouping, digitLength }) => {
         if (digitLength >= 8 && !hasGrouping) return;
         scored.push({
@@ -266,19 +352,27 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
     .map(({ score: _score, ...candidate }) => candidate);
 }
 
+function normalizeLabelCharacters(line: string) {
+  return line.toUpperCase().replace(/[\s:;|\-_.·ㆍ]/g, '');
+}
+
+function hasIgnoredAmountWord(compactLine: string) {
+  return ignoredAmountWords.some((word) => compactLine.includes(normalizeLabelCharacters(word)));
+}
+
 function extractAmounts(line: string) {
   const normalizedLine = normalizeAmountCharacters(line);
-  const matches = [...normalizedLine.matchAll(/(?:₩\s*)?(\d{1,3}(?:\s*,\s*\d{3})+|\d{1,8})(?:\s*원)?/g)];
+  const matches = [...normalizedLine.matchAll(/(?:₩\s*)?(\d{1,3}(?:\s*[,.·]\s*\d{3})+|\d{1,3}(?:\s+\d{3})+|\d{1,8})(?:\s*원)?/g)];
 
   return matches
     .map((match) => {
       const rawValue = match[1];
       if (!rawValue) return null;
-      const compactValue = rawValue.replace(/[\s,]/g, '');
+      const compactValue = rawValue.replace(/[\s,.·]/g, '');
       return {
         amount: Number(compactValue),
         hasCurrency: match[0].includes('₩') || match[0].includes('원'),
-        hasGrouping: rawValue.includes(','),
+        hasGrouping: /[,.·\s]/.test(rawValue),
         digitLength: compactValue.length,
         index: match.index ?? 0,
       };
@@ -293,7 +387,11 @@ function extractAmounts(line: string) {
 }
 
 function normalizeAmountCharacters(line: string) {
-  return line.replace(/(?<=\d)[Oo](?=\d|[,원\s])/g, '0');
+  return line.replace(/[\dOoIl|S]+(?:(?:\s*[,.·]\s*|\s+)[\dOoIl|S]{3})*/g, (token) => {
+    const digitCount = token.match(/\d/g)?.length ?? 0;
+    if (digitCount < 2) return token;
+    return token.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/S/g, '5');
+  });
 }
 
 function looksLikeDateOrTime(line: string, amount: number) {

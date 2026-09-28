@@ -639,6 +639,8 @@ export default function App() {
 
   if (showFinanceManagement) {
     return <FinanceExperience
+      meetupId={selectedMeetup.id}
+      meetupName={selectedMeetup.name}
       onBack={() => {
         setShowFinanceManagement(false);
         setShowMeetupDetail(true);

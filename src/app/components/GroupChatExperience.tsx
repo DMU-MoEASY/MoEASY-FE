@@ -67,6 +67,14 @@ type SettlementMessage = {
 type ChatItem = TextMessage | ImageMessage | ScheduleMessage | SettlementMessage;
 type ComposerMode = 'schedule' | 'settlement' | null;
 
+const CHAT_COMMANDS = [
+  { command: '/사진', label: '사진 보내기', description: '앨범이나 카메라에서 사진 선택', action: 'image' },
+  { command: '/일정', label: '일정 공유', description: '날짜·시간·장소가 있는 일정 만들기', action: 'schedule' },
+  { command: '/정산', label: '정산 요청', description: '총액과 인원으로 정산 카드 만들기', action: 'settlement' },
+  { command: '/송금', label: '송금 요청', description: '정산 요청을 바로 시작하는 별칭', action: 'settlement' },
+  { command: '/도움말', label: '명령어 도움말', description: '사용 가능한 명령어 확인', action: 'help' },
+] as const;
+
 function createInitialMessages(meetupName: string): ChatItem[] {
   return [
     { id: 'welcome-1', type: 'text', sender: '김철수', isMe: false, sentAt: '2026-09-28T14:21:00+09:00', text: `${meetupName} 이번 주 모임 일정 공유할게요!` },
@@ -137,6 +145,10 @@ export function GroupChatExperience({
   const [settlementDraft, setSettlementDraft] = useState({ title: '', totalAmount: '', participants: String(Math.min(memberCount, 10)) });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const commandQuery = message.startsWith('/') ? message.trim().toLowerCase() : '';
+  const filteredCommands = commandQuery
+    ? CHAT_COMMANDS.filter(item => item.command.startsWith(commandQuery))
+    : [];
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -147,9 +159,22 @@ export function GroupChatExperience({
     setAttachmentsOpen(false);
   };
 
+  const executeCommand = (command: string) => {
+    const matchedCommand = CHAT_COMMANDS.find(item => item.command === command.trim().toLowerCase());
+    if (!matchedCommand) return false;
+    setMessage('');
+    setAttachmentsOpen(false);
+    if (matchedCommand.action === 'image') fileInputRef.current?.click();
+    if (matchedCommand.action === 'schedule') setComposerMode('schedule');
+    if (matchedCommand.action === 'settlement') setComposerMode('settlement');
+    if (matchedCommand.action === 'help') setNotice('사용 가능한 명령어: /사진 · /일정 · /정산 · /송금 · /도움말');
+    return true;
+  };
+
   const sendText = () => {
     const text = message.trim();
     if (!text) return;
+    if (executeCommand(text)) return;
     appendMessage({ id: createId(), type: 'text', sender: currentUserName, isMe: true, sentAt: new Date().toISOString(), text });
     setMessage('');
   };
@@ -258,6 +283,10 @@ export function GroupChatExperience({
     <footer className="z-40 shrink-0 border-t border-border bg-white/95 backdrop-blur-xl">
       <div className="mx-auto max-w-3xl px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         {notice && <div className="mb-3 flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="알림 닫기"><X className="h-3.5 w-3.5"/></button></div>}
+        {filteredCommands.length > 0 && <div className="mb-3 overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/[0.08]" role="listbox" aria-label="채팅 명령어">
+          <div className="border-b border-border px-4 py-2.5"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Commands</p></div>
+          {filteredCommands.map((item, index) => <button key={item.command} type="button" role="option" aria-selected={index === 0} onClick={() => executeCommand(item.command)} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-secondary/70 ${index < filteredCommands.length - 1 ? 'border-b border-border' : ''}`}><CommandIcon action={item.action}/><span className="min-w-0 flex-1"><strong className="block text-sm">{item.command} <span className="ml-1 font-medium text-muted-foreground">{item.label}</span></strong><span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.description}</span></span><span className="rounded-md bg-secondary px-2 py-1 text-[10px] text-muted-foreground">실행</span></button>)}
+        </div>}
         {attachmentsOpen && <div className="mb-3 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-black/[0.05]">
           <AttachmentButton label={isImageLoading ? '처리 중' : '사진'} icon={<ImageIcon/>} color="bg-blue-100 text-blue-700" onClick={() => fileInputRef.current?.click()} disabled={isImageLoading}/>
           <AttachmentButton label="일정" icon={<CalendarDays/>} color="bg-violet-100 text-violet-700" onClick={() => setComposerMode('schedule')}/>
@@ -266,7 +295,7 @@ export function GroupChatExperience({
         <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void sendImage(event.target.files?.[0])}/>
         <div className="flex items-end gap-2">
           <button onClick={() => setAttachmentsOpen(current => !current)} aria-label="첨부 메뉴" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition ${attachmentsOpen ? 'bg-primary text-white' : 'bg-secondary text-foreground'}`}><Plus className={`h-5 w-5 transition-transform ${attachmentsOpen ? 'rotate-45' : ''}`}/></button>
-          <textarea value={message} onChange={event => setMessage(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendText(); } }} rows={1} placeholder="메시지를 입력하세요" className="max-h-28 min-h-11 flex-1 resize-none rounded-[20px] bg-secondary px-4 py-3 text-sm outline-none ring-primary/20 focus:ring-2"/>
+          <textarea value={message} onChange={event => setMessage(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendText(); } }} rows={1} placeholder="메시지 또는 /명령어 입력" className="max-h-28 min-h-11 flex-1 resize-none rounded-[20px] bg-secondary px-4 py-3 text-sm outline-none ring-primary/20 focus:ring-2"/>
           <button onClick={sendText} disabled={!message.trim()} aria-label="메시지 보내기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:bg-secondary disabled:text-muted-foreground"><Send className="h-4.5 w-4.5"/></button>
         </div>
       </div>
@@ -295,6 +324,14 @@ function ChatItemView({ item, onToggleAttendance, onTogglePaid }: { item: ChatIt
 
 function AttachmentButton({ label, icon, color, onClick, disabled = false }: { label: string; icon: React.ReactNode; color: string; onClick: () => void; disabled?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled} className="flex flex-col items-center gap-2 rounded-xl py-2.5 text-xs font-medium transition hover:bg-white disabled:opacity-50"><span className={`flex h-10 w-10 items-center justify-center rounded-full [&>svg]:h-5 [&>svg]:w-5 ${color}`}>{icon}</span>{label}</button>;
+}
+
+function CommandIcon({ action }: { action: typeof CHAT_COMMANDS[number]['action'] }) {
+  const styles = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl [&>svg]:h-4 [&>svg]:w-4';
+  if (action === 'image') return <span className={`${styles} bg-blue-100 text-blue-700`}><ImageIcon/></span>;
+  if (action === 'schedule') return <span className={`${styles} bg-violet-100 text-violet-700`}><CalendarDays/></span>;
+  if (action === 'settlement') return <span className={`${styles} bg-emerald-100 text-emerald-700`}><ReceiptText/></span>;
+  return <span className={`${styles} bg-slate-100 font-bold text-slate-700`}>/</span>;
 }
 
 function ComposerModal({ eyebrow, title, description, onClose, children }: { eyebrow: string; title: string; description: string; onClose: () => void; children: React.ReactNode }) {

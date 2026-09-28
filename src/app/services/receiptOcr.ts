@@ -22,6 +22,9 @@ export type OcrWorkerHandle = {
 type ParsedReceipt = Omit<ReceiptOcrResult, 'confidence' | 'usedEnhancedImage'>;
 
 const totalKeywords = [
+  { keyword: '합계', label: '합계', score: 160 },
+  { keyword: '총 금액', label: '총 금액', score: 148 },
+  { keyword: '총액', label: '총액', score: 140 },
   { keyword: '받을금액', label: '받을 금액', score: 130 },
   { keyword: '결제금액', label: '결제 금액', score: 128 },
   { keyword: '결제 금액', label: '결제 금액', score: 128 },
@@ -29,15 +32,12 @@ const totalKeywords = [
   { keyword: '승인 금액', label: '승인 금액', score: 126 },
   { keyword: '청구금액', label: '청구 금액', score: 124 },
   { keyword: '카드금액', label: '카드 금액', score: 122 },
-  { keyword: '총 금액', label: '총 금액', score: 120 },
-  { keyword: '총액', label: '총액', score: 118 },
-  { keyword: '합계', label: '합계', score: 114 },
   { keyword: 'TOTAL', label: 'TOTAL', score: 112 },
 ];
 const ignoredAmountWords = [
   '사업자', '등록번호', '승인번호', '카드번호', '거래번호', '주문번호', '영수증번호',
   '가맹점번호', '고객번호', '전화', 'TEL', '대표자', '일시', '날짜', '부가세', '부가가치세',
-  '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
+  '소계', '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
 ];
 const ignoredStoreWords = ['영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자'];
 

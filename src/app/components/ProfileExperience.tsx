@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Award, CalendarDays, MapPin, Save, Settings, Sparkles, Users, X } from 'lucide-react';
 import { activityRegionGroups, activityRegionOptions, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
+import { UserAvatar } from './UserAvatar';
 
 type Meetup = { id: number; name: string; region: string; category: string };
 interface ProfileExperienceProps {
@@ -8,10 +9,11 @@ interface ProfileExperienceProps {
   meetups: Meetup[];
   onSelectMeetup: (meetup: Meetup) => void;
   profile: UserProfile;
+  profileImageUrl?: string | null;
   onProfileChange: (profile: UserProfile) => void;
 }
 
-export function ProfileExperience({ onLogout, meetups, onSelectMeetup, profile, onProfileChange }: ProfileExperienceProps) {
+export function ProfileExperience({ onLogout, meetups, onSelectMeetup, profile, profileImageUrl, onProfileChange }: ProfileExperienceProps) {
   const [draft, setDraft] = useState(profile);
   const [isEditing, setIsEditing] = useState(false);
   const openEditor = () => { setDraft(profile); setIsEditing(true); };
@@ -22,7 +24,7 @@ export function ProfileExperience({ onLogout, meetups, onSelectMeetup, profile, 
     <section className="relative overflow-hidden rounded-[28px] bg-[#101828] p-7 text-white sm:p-10">
       <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-primary/25 blur-3xl" />
       <div className="relative flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-center gap-5"><div className="flex h-24 w-24 items-center justify-center rounded-[28px] bg-gradient-to-br from-blue-400 to-indigo-600 text-2xl font-semibold shadow-xl shadow-black/20">{profile.nickname.slice(0, 2)}</div><div><span className="rounded-full bg-[#C9FF5C] px-3 py-1 text-xs font-semibold text-[#193300]">매너온도 36.5°</span><h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{profile.nickname}</h1><p className="mt-1 text-sm text-slate-400">{profile.bio}</p><p className="mt-2 flex items-center gap-1 text-xs text-slate-400"><MapPin className="h-3 w-3" />{profile.activityRegion || '활동 지역 미설정'}</p><div className="mt-3 flex flex-wrap gap-1.5">{profile.interests.map(item => <span key={item} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-slate-300">#{item}</span>)}</div></div></div>
+        <div className="flex items-center gap-5"><UserAvatar name={profile.nickname} imageUrl={profileImageUrl} className="h-24 w-24 ring-4 ring-white/10" textClassName="text-xl" /><div><span className="rounded-full bg-[#C9FF5C] px-3 py-1 text-xs font-semibold text-[#193300]">매너온도 36.5°</span><h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{profile.nickname}</h1><p className="mt-1 text-sm text-slate-400">{profile.bio}</p><p className="mt-2 flex items-center gap-1 text-xs text-slate-400"><MapPin className="h-3 w-3" />{profile.activityRegion || '활동 지역 미설정'}</p><div className="mt-3 flex flex-wrap gap-1.5">{profile.interests.map(item => <span key={item} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-slate-300">#{item}</span>)}</div></div></div>
         <button type="button" onClick={openEditor} className="flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm hover:bg-white/10"><Settings className="h-4 w-4" />프로필 편집</button>
       </div>
       <div className="relative mt-9 grid grid-cols-3 divide-x divide-white/10 border-t border-white/10 pt-7 text-center"><Stat value="24" label="참여 일정"/><Stat value="12" label="작성 후기"/><Stat value="156" label="모임 친구"/></div>

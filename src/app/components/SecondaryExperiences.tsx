@@ -5,6 +5,14 @@ import { OptimalTimeCard } from './OptimalTimeCard';
 import type { SocialProvider } from '../services/p0Api';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
 import { usePersistentState } from '../hooks/usePersistentState';
+import {
+  INITIAL_DUES_STATE,
+  meetupFinanceKey,
+  patchLinkedChatMessage,
+  type DuesManagementState,
+  type SettlementRecord,
+  type TransferRecord,
+} from '../services/meetupOperations';
 
 function PageFrame({ eyebrow, title, description, onBack, action, children, dark = false }: { eyebrow: string; title: string; description?: string; onBack: () => void; action?: React.ReactNode; children: React.ReactNode; dark?: boolean }) {
   return <div className="min-h-screen bg-background">
@@ -123,42 +131,6 @@ export function CreateMeetupExperience({ onBack, onCreate }: { onBack: () => voi
   </PageFrame>;
 }
 
-type DuesMember = {
-  id: string;
-  name: string;
-  role: string;
-  paid: boolean;
-  paidAt?: string;
-  lastRemindedAt?: string;
-};
-
-type DuesManagementState = {
-  title: string;
-  amount: number;
-  dueDate: string;
-  account: string;
-  members: DuesMember[];
-};
-
-const INITIAL_DUES_STATE: DuesManagementState = {
-  title: '9월 정기 회비',
-  amount: 15000,
-  dueDate: '2026-09-30',
-  account: '카카오뱅크 3333-01-1234567 김모이지',
-  members: [
-    { id: 'member-1', name: '김모이지', role: '모임장', paid: true, paidAt: '2026-09-03' },
-    { id: 'member-2', name: '김철수', role: '운영진', paid: true, paidAt: '2026-09-04' },
-    { id: 'member-3', name: '이영희', role: '멤버', paid: true, paidAt: '2026-09-05' },
-    { id: 'member-4', name: '박민수', role: '멤버', paid: true, paidAt: '2026-09-06' },
-    { id: 'member-5', name: '최수진', role: '멤버', paid: true, paidAt: '2026-09-07' },
-    { id: 'member-6', name: '강동욱', role: '멤버', paid: true, paidAt: '2026-09-09' },
-    { id: 'member-7', name: '윤서연', role: '멤버', paid: true, paidAt: '2026-09-12' },
-    { id: 'member-8', name: '조현우', role: '멤버', paid: true, paidAt: '2026-09-15' },
-    { id: 'member-9', name: '한지민', role: '멤버', paid: false },
-    { id: 'member-10', name: '오세훈', role: '멤버', paid: false },
-  ],
-};
-
 function createReminderMessage(dues: Pick<DuesManagementState, 'title' | 'amount' | 'dueDate' | 'account'>) {
   const dueDate = dues.dueDate.replaceAll('-', '.');
   return `[MoEasy] ${dues.title} 납부 안내\n아직 회비 납부가 확인되지 않았어요.\n\n납부 금액: ${dues.amount.toLocaleString('ko-KR')}원\n납부 기한: ${dueDate}\n입금 계좌: ${dues.account}\n\n이미 납부하셨다면 모임장에게 알려주세요.`;
@@ -173,7 +145,7 @@ function formatDuesDate(value?: string) {
 
 export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: { meetupId: string | number; meetupName: string; onBack: () => void; onReceipt: () => void }) {
   const [tab, setTab] = useState<'납부 현황' | '거래 내역'>('납부 현황');
-  const [dues, setDues] = usePersistentState<DuesManagementState>(`moeasy:dues-management:${meetupId}`, INITIAL_DUES_STATE);
+  const [dues, setDues] = usePersistentState<DuesManagementState>(meetupFinanceKey(meetupId), INITIAL_DUES_STATE);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(() => ({ title: dues.title, amount: String(dues.amount), dueDate: dues.dueDate, account: dues.account }));
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
@@ -185,6 +157,8 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
   const expectedAmount = dues.amount * dues.members.length;
   const collectedAmount = dues.amount * paidMembers.length;
   const progress = dues.members.length === 0 ? 0 : Math.round((paidMembers.length / dues.members.length) * 100);
+  const settlements = dues.settlements ?? [];
+  const transfers = dues.transfers ?? [];
   const transactionRows = [
     ['회비 납부', `${paidMembers.length}명 납부 완료`, `+${collectedAmount.toLocaleString('ko-KR')}원`, 'text-emerald-600'],
     ['모임 회식', '해운대 횟집 · 9월 15일', '-120,000원', 'text-foreground'],
@@ -252,6 +226,27 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
     setNotice(`${targetIds.length}명의 독촉 문자 발송 기록을 저장했습니다.`);
   };
 
+  const toggleLinkedSettlement = (record: SettlementRecord) => {
+    const completed = !record.completed;
+    const paidCount = completed ? record.participants : Math.min(1, record.participants);
+    setDues(current => ({
+      ...current,
+      settlements: (current.settlements ?? []).map(item => item.id === record.id ? { ...item, completed, paidCount } : item),
+    }));
+    patchLinkedChatMessage(meetupId, record.chatMessageId, { paid: completed, paidCount });
+    setNotice(completed ? '공동 정산을 완료 처리했습니다.' : '공동 정산을 진행 중으로 되돌렸습니다.');
+  };
+
+  const toggleLinkedTransfer = (record: TransferRecord) => {
+    const completed = !record.completed;
+    setDues(current => ({
+      ...current,
+      transfers: (current.transfers ?? []).map(item => item.id === record.id ? { ...item, completed } : item),
+    }));
+    patchLinkedChatMessage(meetupId, record.chatMessageId, { completed });
+    setNotice(completed ? '개별 송금 요청을 완료 처리했습니다.' : '개별 송금 요청을 대기 상태로 되돌렸습니다.');
+  };
+
   return <PageFrame eyebrow="Club finance" title="회비 관리" description={`${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={onReceipt} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>영수증 등록</button>}>
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-[24px] bg-[#101828] p-6 text-white sm:col-span-2"><div className="flex items-start justify-between gap-4"><div><p className="text-xs text-slate-400">이번 회비 모금액</p><strong className="mt-3 block text-4xl tracking-tight">{collectedAmount.toLocaleString('ko-KR')}원</strong></div><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-slate-200">목표 {expectedAmount.toLocaleString('ko-KR')}원</span></div><div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[#C9FF5C] transition-all" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between text-xs text-slate-400"><span>{dues.title}</span><b className="text-white">{progress}% 달성</b></div></div>
@@ -276,7 +271,13 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
         <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{member.name}</h3><span className="text-[11px] text-muted-foreground">{member.role}</span></div><p className="mt-1 text-xs text-muted-foreground">{member.paid ? `${formatDuesDate(member.paidAt)} 납부` : member.lastRemindedAt ? `${formatDuesDate(member.lastRemindedAt)} 독촉 문자 기록` : '아직 안내 기록 없음'}</p></div>
         <button type="button" onClick={() => togglePaid(member.id)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${member.paid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{member.paid ? '납부 완료' : '미납'}</button>
       </div>)}</div>
-    </section> : <section className="mt-4 overflow-hidden rounded-[24px] bg-card ring-1 ring-black/[0.06]">{transactionRows.map(([title,meta,amount,color],index)=><div key={title} className={`flex items-center gap-4 p-5 ${index<transactionRows.length-1?'border-b border-border':''}`}><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary"><Wallet className="h-5 w-5 text-muted-foreground"/></span><div className="flex-1"><h3 className="font-medium">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{meta}</p></div><strong className={`text-sm ${color}`}>{amount}</strong></div>)}</section>}
+    </section> : <div className="mt-4 space-y-4">
+      {(settlements.length > 0 || transfers.length > 0) && <section className="overflow-hidden rounded-[24px] bg-card ring-1 ring-black/[0.06]"><div className="border-b border-border px-5 py-4"><div className="flex items-center gap-2"><h2 className="font-semibold">채팅에서 연결된 업무</h2><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">SYNCED</span></div><p className="mt-1 text-xs text-muted-foreground">채팅에서 만든 정산과 송금 요청의 상태가 함께 반영됩니다.</p></div>
+        {settlements.map((record, index) => <div key={record.id} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${index < settlements.length - 1 || transfers.length > 0 ? 'border-b border-border' : ''}`}><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50"><Receipt className="h-5 w-5 text-emerald-700"/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{record.title}</h3><span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">공동 정산</span></div><p className="mt-1 text-xs text-muted-foreground">총 {record.totalAmount.toLocaleString('ko-KR')}원 · {record.participants}명 · 1인 {record.shareAmount.toLocaleString('ko-KR')}원</p></div><div className="flex items-center justify-between gap-3 sm:justify-end"><span className="text-xs text-muted-foreground">{record.paidCount}/{record.participants}명 완료</span><button type="button" onClick={() => toggleLinkedSettlement(record)} className={`rounded-full px-3 py-2 text-xs font-semibold ${record.completed ? 'bg-emerald-50 text-emerald-700' : 'bg-secondary text-muted-foreground'}`}>{record.completed ? '정산 완료' : '진행 중'}</button></div></div>)}
+        {transfers.map((record, index) => <div key={record.id} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${index < transfers.length - 1 ? 'border-b border-border' : ''}`}><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50"><Send className="h-5 w-5 text-sky-700"/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{record.recipient}님 송금 요청</h3><span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] text-sky-700">개별 송금</span></div><p className="mt-1 text-xs text-muted-foreground">{record.memo} · {record.amount.toLocaleString('ko-KR')}원</p></div><button type="button" onClick={() => toggleLinkedTransfer(record)} className={`self-start rounded-full px-3 py-2 text-xs font-semibold sm:self-auto ${record.completed ? 'bg-sky-50 text-sky-700' : 'bg-secondary text-muted-foreground'}`}>{record.completed ? '송금 완료' : '대기 중'}</button></div>)}
+      </section>}
+      <section className="overflow-hidden rounded-[24px] bg-card ring-1 ring-black/[0.06]">{transactionRows.map(([title,meta,amount,color],index)=><div key={title} className={`flex items-center gap-4 p-5 ${index<transactionRows.length-1?'border-b border-border':''}`}><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary"><Wallet className="h-5 w-5 text-muted-foreground"/></span><div className="flex-1"><h3 className="font-medium">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{meta}</p></div><strong className={`text-sm ${color}`}>{amount}</strong></div>)}</section>
+    </div>}
 
     {isEditing && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="회비 설정"><form onSubmit={saveSettings} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:p-8"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Dues settings</p><h2 className="mt-2 text-2xl font-semibold">회비 설정</h2></div><button type="button" onClick={() => setIsEditing(false)} className="rounded-full bg-secondary p-2"><X className="h-4 w-4"/></button></div><div className="mt-7 space-y-5"><FormField label="회비명"><input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="form-input" placeholder="예: 9월 정기 회비"/></FormField><div className="grid gap-4 sm:grid-cols-2"><FormField label="1인당 회비"><div className="relative"><input type="number" min="0" step="1000" value={draft.amount} onChange={event => setDraft(current => ({ ...current, amount: event.target.value }))} className="form-input pr-10"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span></div></FormField><FormField label="납부 기한"><input type="date" value={draft.dueDate} onChange={event => setDraft(current => ({ ...current, dueDate: event.target.value }))} className="form-input"/></FormField></div><FormField label="입금 계좌"><input value={draft.account} onChange={event => setDraft(current => ({ ...current, account: event.target.value }))} className="form-input" placeholder="은행 계좌번호 예금주"/></FormField></div><div className="mt-8 flex gap-3"><button type="button" onClick={() => setIsEditing(false)} className="flex-1 rounded-xl bg-secondary py-3.5 text-sm font-semibold">취소</button><button type="submit" className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white">설정 저장</button></div></form></div>}
 

@@ -1,22 +1,22 @@
 import { useState } from 'react';
 import { ArrowRight, CalendarDays, Check, Clock3, MapPin, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
+import {
+  INITIAL_GLOBAL_SCHEDULES,
+  globalScheduleKey,
+  patchLinkedChatMessage,
+  syncScheduleAttendance,
+  type GlobalScheduleEvent,
+} from '../services/meetupOperations';
 
 interface ScheduleExperienceProps { onOpenMap: () => void; }
-type ScheduleEvent = { id: number; dateValue: string; day: string; dow: string; title: string; group: string; time: string; place: string; color: string; attending: boolean };
-
-const initialEvents: ScheduleEvent[] = [
-  { id: 1, dateValue: '2026-09-09', day: '09', dow: '수', title: '주간 러닝 모임', group: '강남 러닝 크루', time: '19:30', place: '반포 한강공원', color: 'bg-blue-500', attending: true },
-  { id: 2, dateValue: '2026-09-12', day: '12', dow: '토', title: '프론트엔드 아키텍처', group: '판교 개발자 스터디', time: '20:00', place: '스타트업캠퍼스', color: 'bg-violet-500', attending: true },
-  { id: 3, dateValue: '2026-09-14', day: '14', dow: '월', title: '초보자 백운대 코스', group: '북한산 등산 클럽', time: '08:00', place: '북한산 우이역', color: 'bg-emerald-500', attending: true },
-];
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const emptyForm = { title: '', group: '', date: '2026-09-15', time: '19:00', place: '' };
 
 export function ScheduleExperience({ onOpenMap }: ScheduleExperienceProps) {
-  const [events, setEvents] = usePersistentState('moeasy:scheduleEvents', initialEvents);
+  const [events, setEvents] = usePersistentState(globalScheduleKey, INITIAL_GLOBAL_SCHEDULES);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const scheduledDays = new Set(events.map(event => Number(event.day)));
   const attendingCount = events.filter(event => event.attending).length;
@@ -34,7 +34,7 @@ export function ScheduleExperience({ onOpenMap }: ScheduleExperienceProps) {
     setShowForm(false);
   };
 
-  const editEvent = (event: ScheduleEvent) => {
+  const editEvent = (event: GlobalScheduleEvent) => {
     setEditingId(event.id);
     setForm({ title: event.title, group: event.group, date: event.dateValue, time: event.time, place: event.place });
     setShowForm(true);
@@ -44,6 +44,15 @@ export function ScheduleExperience({ onOpenMap }: ScheduleExperienceProps) {
     setEditingId(null);
     setForm(emptyForm);
     setShowForm(false);
+  };
+
+  const toggleAttendance = (event: GlobalScheduleEvent) => {
+    const attending = !event.attending;
+    setEvents(current => current.map(item => item.id === event.id ? { ...item, attending } : item));
+    if (event.meetupId !== undefined && event.chatMessageId) {
+      syncScheduleAttendance(event.meetupId, event.chatMessageId, attending);
+      patchLinkedChatMessage(event.meetupId, event.chatMessageId, { attending });
+    }
   };
 
   return <div className="space-y-8 lg:space-y-10">
@@ -61,7 +70,7 @@ export function ScheduleExperience({ onOpenMap }: ScheduleExperienceProps) {
       <div className="mb-5 flex items-end justify-between"><div><p className="text-xs font-semibold text-primary">UPCOMING</p><h2 className="mt-1 text-2xl font-semibold">다가오는 일정</h2><p className="mt-1 text-xs text-muted-foreground">참석 {attendingCount}개 · 미정 {events.length - attendingCount}개</p></div><button type="button" onClick={() => showForm ? closeForm() : setShowForm(true)} className="flex items-center gap-2 rounded-full bg-[#101828] px-4 py-2.5 text-sm font-medium text-white">{showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{showForm ? '닫기' : '일정 추가'}</button></div>
       <div className="overflow-hidden rounded-[24px] bg-card ring-1 ring-black/[0.06]">
         {events.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">등록된 일정이 없습니다.</p>}
-        {events.map((event,index)=><article key={event.id} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6 ${index < events.length-1 ? 'border-b border-border' : ''}`}><div className="w-12 text-center"><strong className="block text-2xl">{event.day}</strong><span className="text-xs text-muted-foreground">{event.dow}</span></div><span className={`hidden h-10 w-1 rounded-full sm:block ${event.color}`} /><div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">{event.group}</p><h3 className="mt-1 font-semibold sm:text-lg">{event.title}</h3><div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{event.time}</span><span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{event.place}</span></div></div><div className="flex items-center gap-2"><button type="button" aria-label={`${event.title} 수정`} onClick={() => editEvent(event)} className="rounded-full bg-secondary p-2.5 text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button><button type="button" aria-label={`${event.title} 삭제`} onClick={() => setEvents(current => current.filter(item => item.id !== event.id))} className="rounded-full bg-rose-50 p-2.5 text-rose-600"><Trash2 className="h-4 w-4" /></button><button type="button" aria-pressed={event.attending} onClick={() => setEvents(current => current.map(item => item.id === event.id ? {...item,attending:!item.attending} : item))} className={`rounded-full px-3 py-2 text-xs font-medium transition ${event.attending ? 'bg-emerald-50 text-emerald-700' : 'bg-secondary text-muted-foreground'}`}>{event.attending ? <span className="flex items-center gap-1"><Check className="h-3.5 w-3.5" />참석</span> : '미정'}</button></div></article>)}
+        {events.map((event,index)=><article key={event.id} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6 ${index < events.length-1 ? 'border-b border-border' : ''}`}><div className="w-12 text-center"><strong className="block text-2xl">{event.day}</strong><span className="text-xs text-muted-foreground">{event.dow}</span></div><span className={`hidden h-10 w-1 rounded-full sm:block ${event.color}`} /><div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">{event.group}</p><h3 className="mt-1 font-semibold sm:text-lg">{event.title}</h3><div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{event.time}</span><span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{event.place}</span>{event.chatMessageId && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">채팅 연동</span>}</div></div><div className="flex items-center gap-2"><button type="button" aria-label={`${event.title} 수정`} onClick={() => editEvent(event)} className="rounded-full bg-secondary p-2.5 text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button><button type="button" aria-label={`${event.title} 삭제`} onClick={() => setEvents(current => current.filter(item => item.id !== event.id))} className="rounded-full bg-rose-50 p-2.5 text-rose-600"><Trash2 className="h-4 w-4" /></button><button type="button" aria-pressed={event.attending} onClick={() => toggleAttendance(event)} className={`rounded-full px-3 py-2 text-xs font-medium transition ${event.attending ? 'bg-emerald-50 text-emerald-700' : 'bg-secondary text-muted-foreground'}`}>{event.attending ? <span className="flex items-center gap-1"><Check className="h-3.5 w-3.5" />참석</span> : '미정'}</button></div></article>)}
       </div>
     </section>
     <section className="flex items-center gap-4 rounded-[22px] bg-[#FFF4D8] p-5 sm:p-6"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FFD76A]"><Sparkles className="h-5 w-5" /></span><div><h3 className="font-semibold">일정 조율이 필요한 모임이 있어요</h3><p className="mt-1 text-sm text-amber-900/60">판교 개발자 스터디의 10월 일정을 함께 정해주세요.</p></div><ArrowRight className="ml-auto h-5 w-5" /></section>

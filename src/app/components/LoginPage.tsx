@@ -3,9 +3,7 @@ import { CalendarDays, LoaderCircle, MapPin, ShieldCheck, Sparkles, Users } from
 import { beginSocialLogin } from '../services/oauth';
 import type { SocialProvider } from '../services/p0Api';
 
-interface LoginPageProps { onSignupClick: () => void; }
-
-export function LoginPage({ onSignupClick }: LoginPageProps) {
+export function LoginPage() {
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [loginError, setLoginError] = useState('');
 
@@ -40,16 +38,15 @@ export function LoginPage({ onSignupClick }: LoginPageProps) {
         <section className="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-24">
           <div className="w-full max-w-[430px]">
             <div className="mb-12 lg:hidden"><BrandLogo className="h-11" /></div>
-            <p className="text-sm font-semibold text-primary">WELCOME BACK</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">다시 만나서 반가워요.</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">내 모임의 새로운 소식을 확인해보세요.</p>
+            <p className="text-sm font-semibold text-primary">WELCOME TO MOEASY</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">소셜 계정으로 시작해요.</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">처음 방문했다면 로그인 후 간단한 프로필 설정이 이어져요.</p>
             <div className="mt-9 space-y-3">
               <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('KAKAO')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] px-4 py-4 text-sm font-semibold text-[#181600] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'KAKAO' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-[#FEE500]">K</span>}카카오로 로그인</button>
               <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('GOOGLE')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-4 text-sm font-semibold ring-1 ring-black/10 transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'GOOGLE' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="font-bold text-[#4285F4]">G</span>}Google로 로그인</button>
             </div>
             {loginError && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{loginError}</p>}
             <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><span>MoEasy는 비밀번호를 별도로 저장하지 않으며 카카오 또는 Google 계정으로 안전하게 연결됩니다.</span></div>
-            <p className="mt-8 text-center text-sm text-muted-foreground">아직 계정이 없나요? <button onClick={onSignupClick} className="font-semibold text-foreground hover:text-primary">무료로 시작하기</button></p>
           </div>
         </section>
       </div>

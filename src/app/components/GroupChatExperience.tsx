@@ -3,19 +3,19 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
-  ChevronRight,
-  Clock3,
   Image as ImageIcon,
   MapPin,
   MoreHorizontal,
   Plus,
   ReceiptText,
+  Search,
   Send,
   Users,
   Wallet,
   X,
 } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { UserAvatar } from './UserAvatar';
 import {
   linkScheduleFromChat,
   linkSettlementFromChat,
@@ -351,19 +351,21 @@ export function GroupChatExperience({
     syncFinanceCompletion(meetupId, messageId, completed);
   };
 
-  return <div className="flex h-screen flex-col overflow-hidden bg-[#EEF1F5]">
-    <header className="z-50 shrink-0 border-b border-white/10 bg-[#101828] text-white">
-      <div className="mx-auto flex h-[72px] max-w-5xl items-center justify-between px-3 sm:px-5">
-        <button onClick={onBack} aria-label="모임으로 돌아가기" className="rounded-full p-2.5 hover:bg-white/10"><ArrowLeft className="h-5 w-5"/></button>
-        <div className="min-w-0 text-center"><h1 className="truncate font-semibold">{meetupName}</h1><p className="mt-0.5 text-[11px] text-slate-400">{memberCount}명 · 그룹 채팅</p></div>
-        <button aria-label="채팅방 메뉴" className="rounded-full p-2.5 hover:bg-white/10"><MoreHorizontal className="h-5 w-5"/></button>
+  return <div className="flex h-screen flex-col overflow-hidden bg-[#F6F7F9]">
+    <header className="z-50 shrink-0 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-[72px] max-w-3xl items-center gap-2 px-3 sm:px-5">
+        <button onClick={onBack} aria-label="모임으로 돌아가기" className="rounded-full p-2.5 text-slate-700 hover:bg-slate-100"><ArrowLeft className="h-5 w-5"/></button>
+        <UserAvatar name={meetupName} className="h-10 w-10" textClassName="text-[11px]"/>
+        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-semibold text-slate-950">{meetupName}</h1><p className="mt-0.5 text-[11px] text-slate-500">멤버 {memberCount}명</p></div>
+        <button aria-label="채팅 검색" className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100"><Search className="h-5 w-5"/></button>
+        <button aria-label="채팅방 메뉴" className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100"><MoreHorizontal className="h-5 w-5"/></button>
       </div>
     </header>
 
     <main className="min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-5">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-6 text-center"><span className="rounded-full bg-slate-200/80 px-3 py-1.5 text-[11px] text-slate-600">오늘</span></div>
-        <div className="space-y-5">{messages.map(item => <ChatItemView key={item.id} item={item} onToggleAttendance={() => toggleScheduleAttendance(item.id)} onTogglePaid={() => toggleSettlementPaid(item.id)} onToggleTransfer={() => toggleTransferCompleted(item.id)}/>)}</div>
+        <div className="mb-6 text-center"><span className="rounded-full bg-slate-200/70 px-3 py-1 text-[11px] font-medium text-slate-500">오늘</span></div>
+        <div className="space-y-4">{messages.map(item => <ChatItemView key={item.id} item={item} onToggleAttendance={() => toggleScheduleAttendance(item.id)} onTogglePaid={() => toggleSettlementPaid(item.id)} onToggleTransfer={() => toggleTransferCompleted(item.id)}/>)}</div>
         <div ref={scrollAnchorRef}/>
       </div>
     </main>
@@ -372,20 +374,20 @@ export function GroupChatExperience({
       <div className="mx-auto max-w-3xl px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         {notice && <div className="mb-3 flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="알림 닫기"><X className="h-3.5 w-3.5"/></button></div>}
         {filteredCommands.length > 0 && <div className="mb-3 overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/[0.08]" role="listbox" aria-label="채팅 명령어">
-          <div className="border-b border-border px-4 py-2.5"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Commands</p></div>
+          <div className="border-b border-border px-4 py-2.5"><p className="text-[11px] font-semibold text-muted-foreground">사용할 기능을 선택하세요</p></div>
           {filteredCommands.map((item, index) => <button key={item.command} type="button" role="option" aria-selected={index === 0} onClick={() => executeCommand(item.command)} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-secondary/70 ${index < filteredCommands.length - 1 ? 'border-b border-border' : ''}`}><CommandIcon action={item.action}/><span className="min-w-0 flex-1"><strong className="block text-sm">{item.command} <span className="ml-1 font-medium text-muted-foreground">{item.label}</span></strong><span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.description}</span></span><span className="rounded-md bg-secondary px-2 py-1 text-[10px] text-muted-foreground">실행</span></button>)}
         </div>}
-        {attachmentsOpen && <div className="mb-3 grid grid-cols-4 gap-1 rounded-2xl bg-slate-50 p-3 ring-1 ring-black/[0.05]">
-          <AttachmentButton label={isImageLoading ? '처리 중' : '사진'} icon={<ImageIcon/>} color="bg-blue-100 text-blue-700" onClick={() => fileInputRef.current?.click()} disabled={isImageLoading}/>
-          <AttachmentButton label="일정" icon={<CalendarDays/>} color="bg-violet-100 text-violet-700" onClick={() => setComposerMode('schedule')}/>
-          <AttachmentButton label="정산" icon={<ReceiptText/>} color="bg-emerald-100 text-emerald-700" onClick={() => setComposerMode('settlement')}/>
-          <AttachmentButton label="송금" icon={<Wallet/>} color="bg-sky-100 text-sky-700" onClick={() => setComposerMode('transfer')}/>
+        {attachmentsOpen && <div className="mb-3 grid grid-cols-4 gap-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <AttachmentButton label={isImageLoading ? '처리 중' : '사진'} icon={<ImageIcon/>} onClick={() => fileInputRef.current?.click()} disabled={isImageLoading}/>
+          <AttachmentButton label="일정" icon={<CalendarDays/>} onClick={() => setComposerMode('schedule')}/>
+          <AttachmentButton label="정산" icon={<ReceiptText/>} onClick={() => setComposerMode('settlement')}/>
+          <AttachmentButton label="송금" icon={<Wallet/>} onClick={() => setComposerMode('transfer')}/>
         </div>}
         <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void sendImage(event.target.files?.[0])}/>
         <div className="flex items-end gap-2">
-          <button onClick={() => setAttachmentsOpen(current => !current)} aria-label="첨부 메뉴" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition ${attachmentsOpen ? 'bg-primary text-white' : 'bg-secondary text-foreground'}`}><Plus className={`h-5 w-5 transition-transform ${attachmentsOpen ? 'rotate-45' : ''}`}/></button>
-          <textarea value={message} onChange={event => setMessage(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendText(); } }} rows={1} placeholder="메시지 또는 /명령어 입력" className="max-h-28 min-h-11 flex-1 resize-none rounded-[20px] bg-secondary px-4 py-3 text-sm outline-none ring-primary/20 focus:ring-2"/>
-          <button onClick={sendText} disabled={!message.trim()} aria-label="메시지 보내기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:bg-secondary disabled:text-muted-foreground"><Send className="h-4.5 w-4.5"/></button>
+          <button onClick={() => setAttachmentsOpen(current => !current)} aria-label="첨부 메뉴" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition ${attachmentsOpen ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}><Plus className={`h-5 w-5 transition-transform ${attachmentsOpen ? 'rotate-45' : ''}`}/></button>
+          <textarea value={message} onChange={event => setMessage(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendText(); } }} rows={1} placeholder="메시지 입력 · / 로 기능 열기" className="max-h-28 min-h-11 flex-1 resize-none rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-primary/10"/>
+          <button onClick={sendText} disabled={!message.trim()} aria-label="메시지 보내기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#315EFB] text-white transition hover:bg-[#244ED8] disabled:bg-slate-100 disabled:text-slate-400"><Send className="h-4.5 w-4.5"/></button>
         </div>
       </div>
     </footer>
@@ -401,29 +403,43 @@ export function GroupChatExperience({
 function ChatItemView({ item, onToggleAttendance, onTogglePaid, onToggleTransfer }: { item: ChatItem; onToggleAttendance: () => void; onTogglePaid: () => void; onToggleTransfer: () => void }) {
   const cardAlignment = item.isMe ? 'items-end' : 'items-start';
   return <article className={`flex gap-2.5 ${item.isMe ? 'flex-row-reverse' : ''}`}>
-    {!item.isMe && <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-semibold text-white">{item.sender.slice(-2)}</span>}
-    <div className={`flex max-w-[82%] flex-col sm:max-w-[70%] ${cardAlignment}`}>
-      {!item.isMe && <span className="mb-1.5 px-1 text-xs text-slate-500">{item.sender}</span>}
-      {item.type === 'text' && <div className={`rounded-[20px] px-4 py-2.5 text-sm leading-6 shadow-sm ${item.isMe ? 'rounded-tr-md bg-primary text-white' : 'rounded-tl-md bg-white text-foreground ring-1 ring-black/[0.05]'}`}>{item.text}</div>}
-      {item.type === 'image' && <div className={`overflow-hidden rounded-[22px] bg-white shadow-sm ring-1 ring-black/[0.06] ${item.isMe ? 'rounded-tr-md' : 'rounded-tl-md'}`}><img src={item.imageUrl} alt={item.fileName} className="max-h-[420px] w-full object-cover"/>{item.caption && <p className="px-4 py-3 text-sm leading-6">{item.caption}</p>}</div>}
-      {item.type === 'schedule' && <div className={`w-[290px] overflow-hidden rounded-[22px] bg-white shadow-sm ring-1 ring-black/[0.06] ${item.isMe ? 'rounded-tr-md' : 'rounded-tl-md'}`}><div className="bg-violet-600 p-4 text-white"><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-medium text-violet-100"><CalendarDays className="h-4 w-4"/>일정 공유</span><ChevronRight className="h-4 w-4 text-violet-200"/></div><h3 className="mt-4 font-semibold">{item.title}</h3></div><div className="space-y-3 p-4 text-sm"><p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-violet-600"/>{formatScheduleDate(item.date)}</p><p className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-violet-600"/>{item.time}</p><p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-violet-600"/><span>{item.location}</span></p><div className="flex items-center justify-between border-t border-border pt-3"><span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Users className="h-3.5 w-3.5"/>{item.attendeeCount}명 참석</span><button onClick={onToggleAttendance} className={`rounded-full px-3 py-2 text-xs font-semibold ${item.attending ? 'bg-violet-100 text-violet-700' : 'bg-violet-600 text-white'}`}>{item.attending ? '참석 예정' : '참석할게요'}</button></div></div></div>}
-      {item.type === 'settlement' && <div className={`w-[290px] overflow-hidden rounded-[22px] bg-white shadow-sm ring-1 ring-black/[0.06] ${item.isMe ? 'rounded-tr-md' : 'rounded-tl-md'}`}><div className="bg-emerald-600 p-4 text-white"><span className="flex items-center gap-2 text-xs font-medium text-emerald-100"><ReceiptText className="h-4 w-4"/>정산 요청</span><h3 className="mt-4 font-semibold">{item.title}</h3><strong className="mt-2 block text-2xl">{Math.ceil(item.totalAmount / item.participants).toLocaleString('ko-KR')}원</strong><p className="mt-1 text-xs text-emerald-100">총 {item.totalAmount.toLocaleString('ko-KR')}원 · {item.participants}명</p></div><div className="p-4"><div className="mb-3 flex items-center justify-between text-xs text-muted-foreground"><span>{item.paidCount}/{item.participants}명 완료</span><span>{Math.round((item.paidCount / item.participants) * 100)}%</span></div><div className="mb-4 h-1.5 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (item.paidCount / item.participants) * 100)}%` }}/></div><button onClick={onTogglePaid} className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ${item.paid ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-600 text-white'}`}>{item.paid ? <><Check className="h-4 w-4"/>송금 완료</> : <><Wallet className="h-4 w-4"/>송금 완료 처리</>}</button></div></div>}
-      {item.type === 'transfer' && <div className={`w-[290px] overflow-hidden rounded-[22px] bg-white shadow-sm ring-1 ring-black/[0.06] ${item.isMe ? 'rounded-tr-md' : 'rounded-tl-md'}`}><div className="bg-sky-600 p-4 text-white"><span className="flex items-center gap-2 text-xs font-medium text-sky-100"><Wallet className="h-4 w-4"/>개별 송금 요청</span><p className="mt-4 text-sm text-sky-100">{item.recipient}님에게</p><strong className="mt-1 block text-2xl">{item.amount.toLocaleString('ko-KR')}원</strong></div><div className="p-4"><p className="mb-4 text-sm leading-6">{item.memo}</p><button onClick={onToggleTransfer} className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ${item.completed ? 'bg-sky-50 text-sky-700' : 'bg-sky-600 text-white'}`}>{item.completed ? <><Check className="h-4 w-4"/>송금 완료</> : <><Wallet className="h-4 w-4"/>송금 완료 처리</>}</button></div></div>}
-      <span className="mt-1 px-1 text-[10px] text-slate-500">{formatChatTime(item.sentAt)}</span>
+    {!item.isMe && <UserAvatar name={item.sender} className="mt-0.5 h-9 w-9" textClassName="text-[10px]"/>}
+    <div className={`flex max-w-[84%] flex-col sm:max-w-[72%] ${cardAlignment}`}>
+      {!item.isMe && <span className="mb-1.5 px-1 text-xs font-medium text-slate-600">{item.sender}</span>}
+      {item.type === 'text' && <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${item.isMe ? 'rounded-tr-[5px] bg-[#315EFB] text-white' : 'rounded-tl-[5px] border border-slate-200 bg-white text-slate-900'}`}>{item.text}</div>}
+      {item.type === 'image' && <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white ${item.isMe ? 'rounded-tr-[5px]' : 'rounded-tl-[5px]'}`}><img src={item.imageUrl} alt={item.fileName} className="max-h-[420px] w-full object-cover"/>{item.caption && <p className="px-3.5 py-3 text-sm leading-6">{item.caption}</p>}</div>}
+      {item.type === 'schedule' && <TaskCard label="일정" icon={<CalendarDays/>} title={item.title} accent="text-[#315EFB]">
+        <div className="space-y-2.5 text-sm text-slate-700"><p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-slate-400"/>{formatScheduleDate(item.date)} · {item.time}</p><p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"/><span>{item.location}</span></p></div>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3"><span className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5"/>{item.attendeeCount}명 참석</span><button onClick={onToggleAttendance} className={`rounded-lg px-3 py-2 text-xs font-semibold ${item.attending ? 'bg-slate-100 text-slate-700' : 'bg-[#315EFB] text-white'}`}>{item.attending ? '참석 취소' : '참석하기'}</button></div>
+      </TaskCard>}
+      {item.type === 'settlement' && <TaskCard label="정산" icon={<ReceiptText/>} title={item.title} accent="text-emerald-700">
+        <div className="flex items-end justify-between"><div><strong className="text-xl text-slate-950">{Math.ceil(item.totalAmount / item.participants).toLocaleString('ko-KR')}원</strong><p className="mt-1 text-xs text-slate-500">1인당 · 총 {item.participants}명</p></div><span className="text-xs font-medium text-slate-500">{item.paidCount}/{item.participants} 완료</span></div>
+        <div className="my-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (item.paidCount / item.participants) * 100)}%` }}/></div>
+        <button onClick={onTogglePaid} className={`flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold ${item.paid ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-white'}`}>{item.paid ? <><Check className="h-4 w-4"/>완료 취소</> : <><Check className="h-4 w-4"/>송금 완료</>}</button>
+      </TaskCard>}
+      {item.type === 'transfer' && <TaskCard label="송금 요청" icon={<Wallet/>} title={`${item.recipient}님에게`} accent="text-sky-700">
+        <strong className="text-xl text-slate-950">{item.amount.toLocaleString('ko-KR')}원</strong><p className="mt-2 text-sm leading-6 text-slate-600">{item.memo}</p>
+        <button onClick={onToggleTransfer} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold ${item.completed ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-white'}`}>{item.completed ? <><Check className="h-4 w-4"/>완료 취소</> : <><Check className="h-4 w-4"/>송금 완료</>}</button>
+      </TaskCard>}
+      <span className="mt-1 px-1 text-[10px] text-slate-400">{formatChatTime(item.sentAt)}</span>
     </div>
   </article>;
 }
 
-function AttachmentButton({ label, icon, color, onClick, disabled = false }: { label: string; icon: React.ReactNode; color: string; onClick: () => void; disabled?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className="flex flex-col items-center gap-2 rounded-xl py-2.5 text-xs font-medium transition hover:bg-white disabled:opacity-50"><span className={`flex h-10 w-10 items-center justify-center rounded-full [&>svg]:h-5 [&>svg]:w-5 ${color}`}>{icon}</span>{label}</button>;
+function TaskCard({ label, icon, title, accent, children }: { label: string; icon: React.ReactNode; title: string; accent: string; children: React.ReactNode }) {
+  return <div className="w-[300px] max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.04)]"><div className={`mb-2 flex items-center gap-1.5 text-xs font-semibold ${accent}`}><span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>{label}</div><h3 className="mb-4 font-semibold text-slate-950">{title}</h3>{children}</div>;
+}
+
+function AttachmentButton({ label, icon, onClick, disabled = false }: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className="flex flex-col items-center gap-2 rounded-xl py-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>{label}</button>;
 }
 
 function CommandIcon({ action }: { action: typeof CHAT_COMMANDS[number]['action'] }) {
   const styles = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl [&>svg]:h-4 [&>svg]:w-4';
-  if (action === 'image') return <span className={`${styles} bg-blue-100 text-blue-700`}><ImageIcon/></span>;
-  if (action === 'schedule') return <span className={`${styles} bg-violet-100 text-violet-700`}><CalendarDays/></span>;
-  if (action === 'settlement') return <span className={`${styles} bg-emerald-100 text-emerald-700`}><ReceiptText/></span>;
-  if (action === 'transfer') return <span className={`${styles} bg-sky-100 text-sky-700`}><Wallet/></span>;
+  if (action === 'image') return <span className={`${styles} bg-slate-100 text-slate-700`}><ImageIcon/></span>;
+  if (action === 'schedule') return <span className={`${styles} bg-slate-100 text-slate-700`}><CalendarDays/></span>;
+  if (action === 'settlement') return <span className={`${styles} bg-slate-100 text-slate-700`}><ReceiptText/></span>;
+  if (action === 'transfer') return <span className={`${styles} bg-slate-100 text-slate-700`}><Wallet/></span>;
   return <span className={`${styles} bg-slate-100 font-bold text-slate-700`}>/</span>;
 }
 

@@ -22,17 +22,13 @@ export type OcrWorkerHandle = {
 type ParsedReceipt = Omit<ReceiptOcrResult, 'confidence' | 'usedEnhancedImage'>;
 
 const totalKeywords = [
-  { keyword: '합계', label: '합계', score: 160 },
-  { keyword: '총 금액', label: '총 금액', score: 148 },
-  { keyword: '총액', label: '총액', score: 140 },
-  { keyword: '받을금액', label: '받을 금액', score: 130 },
-  { keyword: '결제금액', label: '결제 금액', score: 128 },
-  { keyword: '결제 금액', label: '결제 금액', score: 128 },
-  { keyword: '승인금액', label: '승인 금액', score: 126 },
-  { keyword: '승인 금액', label: '승인 금액', score: 126 },
-  { keyword: '청구금액', label: '청구 금액', score: 124 },
-  { keyword: '카드금액', label: '카드 금액', score: 122 },
-  { keyword: 'TOTAL', label: 'TOTAL', score: 112 },
+  { aliases: ['최종합계', '총합계', '판매합계', '합계금액', '합계', '함계', '합게'], label: '합계', score: 180 },
+  { aliases: ['최종결제금액', '실결제금액', '총결제금액', '결제금액', '결제대금'], label: '결제 금액', score: 168 },
+  { aliases: ['총금액', '총액', '최종금액', '지불금액'], label: '총 금액', score: 156 },
+  { aliases: ['받을금액', '받은금액'], label: '받을 금액', score: 146 },
+  { aliases: ['승인금액', '카드승인금액'], label: '승인 금액', score: 142 },
+  { aliases: ['청구금액', '카드금액'], label: '청구 금액', score: 138 },
+  { aliases: ['GRANDTOTAL', 'TOTALAMOUNT', 'PAYMENTAMOUNT', 'AMOUNTDUE', 'TOTAL'], label: 'TOTAL', score: 132 },
 ];
 const ignoredAmountWords = [
   '사업자', '등록번호', '승인번호', '카드번호', '거래번호', '주문번호', '영수증번호',
@@ -47,7 +43,7 @@ export async function recognizeReceiptImage(
   onWorker: (worker: OcrWorkerHandle | null) => void,
 ): Promise<ReceiptOcrResult> {
   const { createWorker, PSM } = await import('tesseract.js');
-  let phase: 'setup' | 'enhanced' | 'fallback' = 'setup';
+  let phase: 'setup' | 'enhanced' | 'fallback' | 'focused' = 'setup';
   const worker = await createWorker(['kor', 'eng'], undefined, {
     logger: ({ progress, status }) => {
       if (status !== 'recognizing text') {
@@ -56,9 +52,11 @@ export async function recognizeReceiptImage(
       }
 
       if (phase === 'enhanced') {
-        onProgress(0.15 + progress * 0.55, '보정한 이미지에서 글자를 읽는 중');
+        onProgress(0.15 + progress * 0.35, '보정한 이미지에서 글자를 읽는 중');
       } else if (phase === 'fallback') {
-        onProgress(0.72 + progress * 0.27, '원본 이미지와 결과를 비교하는 중');
+        onProgress(0.52 + progress * 0.27, '원본 이미지와 결과를 비교하는 중');
+      } else if (phase === 'focused') {
+        onProgress(0.81 + progress * 0.18, '영수증 하단에서 합계를 다시 찾는 중');
       }
     },
   });
@@ -81,15 +79,39 @@ export async function recognizeReceiptImage(
     await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
     const original = await worker.recognize(image, { rotateAuto: true });
     const originalCandidate = createCandidate(original.data.text, original.data.confidence, false);
+
+    const candidates = [enhancedCandidate, originalCandidate];
+    const hasReliableTotal = candidates.some((candidate) => candidate.amountCandidates[0]?.confidence === 'high');
+    if (!hasReliableTotal) {
+      phase = 'focused';
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+      const focusedImage = cropReceiptBottom(enhancedImage);
+      const focused = await worker.recognize(focusedImage);
+      candidates.push(createCandidate(focused.data.text, focused.data.confidence, true));
+    }
+
+    const mergedCandidate = mergeCandidates(candidates);
     onProgress(1, '더 정확한 인식 결과를 선택했어요');
 
-    return scoreCandidate(originalCandidate) > scoreCandidate(enhancedCandidate)
-      ? originalCandidate
-      : enhancedCandidate;
+    return [...candidates, mergedCandidate]
+      .sort((left, right) => scoreCandidate(right) - scoreCandidate(left))[0] ?? mergedCandidate;
   } finally {
     await worker.terminate().catch(() => undefined);
     onWorker(null);
   }
+}
+
+function cropReceiptBottom(image: HTMLCanvasElement) {
+  const startY = Math.round(image.height * 0.42);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = Math.max(1, image.height - startY);
+  const context = canvas.getContext('2d');
+  if (!context) return image;
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, startY, image.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 
 export function parseReceiptText(rawText: string): ParsedReceipt {
@@ -195,6 +217,22 @@ function createCandidate(rawText: string, confidence: number, usedEnhancedImage:
   };
 }
 
+function mergeCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
+  const uniqueLines = new Set<string>();
+  candidates.forEach((candidate) => {
+    candidate.rawText.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed) uniqueLines.add(trimmed);
+    });
+  });
+
+  const mergedText = [...uniqueLines].join('\n');
+  const averageConfidence = candidates.length > 0
+    ? candidates.reduce((sum, candidate) => sum + candidate.confidence, 0) / candidates.length
+    : 0;
+  return createCandidate(mergedText, averageConfidence, candidates.some((candidate) => candidate.usedEnhancedImage));
+}
+
 function scoreCandidate(candidate: ReceiptOcrResult) {
   const meaningfulCharacters = candidate.rawText.replace(/\s/g, '').length;
   const amountConfidence = candidate.amountCandidates[0]?.confidence;
@@ -213,7 +251,7 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
 
   lines.forEach((line, lineIndex) => {
     const upperLine = line.toUpperCase();
-    const keyword = totalKeywords.find(({ keyword: value }) => upperLine.includes(value));
+    const keyword = findTotalKeyword(line);
     const lineAmounts = extractAmounts(line);
 
     lineAmounts.forEach(({ amount, hasCurrency, hasGrouping, digitLength, index }) => {
@@ -237,18 +275,21 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
       }
     });
 
-    const nextLine = lines[lineIndex + 1];
-    if (keyword && lineAmounts.length === 0 && nextLine) {
-      const nextUpperLine = nextLine.toUpperCase();
-      if (ignoredAmountWords.some((word) => nextUpperLine.includes(word))) return;
-      extractAmounts(nextLine).forEach(({ amount, hasCurrency, hasGrouping, digitLength }) => {
-        if (digitLength >= 8 && !hasGrouping) return;
-        scored.push({
-          amount,
-          label: `${keyword.label} 다음 줄`,
-          sourceLine: nextLine,
-          score: keyword.score - 12 + (hasCurrency ? 18 : 0) + (hasGrouping ? 12 : 0),
-          confidence: 'high',
+    if (keyword && lineAmounts.length === 0) {
+      lines.slice(lineIndex + 1, lineIndex + 4).forEach((nearbyLine, offset) => {
+        const nearbyUpperLine = nearbyLine.toUpperCase();
+        if (ignoredAmountWords.some((word) => nearbyUpperLine.includes(word))) return;
+        extractAmounts(nearbyLine).forEach(({ amount, hasCurrency, hasGrouping, digitLength }) => {
+          if (digitLength >= 8 && !hasGrouping) return;
+          const distancePenalty = (offset + 1) * 10;
+          const score = keyword.score - distancePenalty + (hasCurrency ? 18 : 0) + (hasGrouping ? 12 : 0);
+          scored.push({
+            amount,
+            label: `${keyword.label} 근처`,
+            sourceLine: `${line} / ${nearbyLine}`,
+            score,
+            confidence: score >= 112 ? 'high' : 'medium',
+          });
         });
       });
     }
@@ -268,17 +309,20 @@ function findAmountCandidates(lines: string[]): ReceiptAmountCandidate[] {
 
 function extractAmounts(line: string) {
   const normalizedLine = normalizeAmountCharacters(line);
-  const matches = [...normalizedLine.matchAll(/(?:₩\s*)?(\d{1,3}(?:\s*,\s*\d{3})+|\d{1,8})(?:\s*원)?/g)];
+  const matches = [...normalizedLine.matchAll(/(?:₩|￦|\\|W)?\s*([0-9OQDIiLl|]{1,3}(?:(?:\s*[,，.]\s*|\s+)[0-9OQDIiLl|]{3})+|[0-9OQDIiLl|]{3,8})(?:\s*(?:원|KRW))?/gi)];
 
   return matches
     .map((match) => {
       const rawValue = match[1];
       if (!rawValue) return null;
-      const compactValue = rawValue.replace(/[\s,]/g, '');
+      const compactValue = rawValue
+        .replace(/[OQD]/gi, '0')
+        .replace(/[IiLl|]/g, '1')
+        .replace(/[\s,，.]/g, '');
       return {
         amount: Number(compactValue),
-        hasCurrency: match[0].includes('₩') || match[0].includes('원'),
-        hasGrouping: rawValue.includes(','),
+        hasCurrency: /[₩￦\\W원]|KRW/i.test(match[0]),
+        hasGrouping: /[,，.]|\s/.test(rawValue.trim()),
         digitLength: compactValue.length,
         index: match.index ?? 0,
       };
@@ -293,7 +337,18 @@ function extractAmounts(line: string) {
 }
 
 function normalizeAmountCharacters(line: string) {
-  return line.replace(/(?<=\d)[Oo](?=\d|[,원\s])/g, '0');
+  return line
+    .replace(/[₩￦]/g, '￦')
+    .replace(/(?<=[\d,，.\s])[OoQD](?=\d|[,，.원\s])/gi, '0')
+    .replace(/(?<=[\d,，.\s])[IiLl|](?=\d|[,，.원\s])/g, '1');
+}
+
+function findTotalKeyword(line: string) {
+  const normalized = line
+    .toUpperCase()
+    .replace(/[^가-힣A-Z0-9]/g, '');
+
+  return totalKeywords.find(({ aliases }) => aliases.some((alias) => normalized.includes(alias)));
 }
 
 function looksLikeDateOrTime(line: string, amount: number) {

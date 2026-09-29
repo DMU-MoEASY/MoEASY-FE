@@ -6,6 +6,9 @@ export type UserProfile = {
 };
 
 export const USER_PROFILE_KEY = 'moeasy:userProfile';
+export const USER_PROFILES_BY_MEMBER_KEY = 'moeasy:userProfilesByMember';
+
+export type UserProfilesByMember = Record<string, UserProfile>;
 
 export const defaultUserProfile: UserProfile = {
   nickname: '김모이지',

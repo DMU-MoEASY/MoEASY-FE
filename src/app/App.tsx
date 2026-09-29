@@ -64,7 +64,13 @@ import {
   removeLegacyLoginState,
   type AuthSession,
 } from './services/authSession';
-import { defaultUserProfile, USER_PROFILE_KEY, type UserProfile } from './services/userProfile';
+import {
+  defaultUserProfile,
+  USER_PROFILE_KEY,
+  USER_PROFILES_BY_MEMBER_KEY,
+  type UserProfile,
+  type UserProfilesByMember,
+} from './services/userProfile';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
 type Meetup = {
@@ -351,6 +357,10 @@ export default function App() {
   const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
   const [authSession, setAuthSession] = usePersistentState<AuthSession | null>(AUTH_SESSION_KEY, getInitialAuthSession());
   const [userProfile, setUserProfile] = usePersistentState<UserProfile>(USER_PROFILE_KEY, defaultUserProfile);
+  const [userProfilesByMember, setUserProfilesByMember] = usePersistentState<UserProfilesByMember>(
+    USER_PROFILES_BY_MEMBER_KEY,
+    {},
+  );
   const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
   const isLoggedIn = authSession !== null;
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
@@ -406,6 +416,27 @@ export default function App() {
   }, [authSession]);
 
   useEffect(() => {
+    if (!authSession) return;
+
+    const memberKey = String(authSession.memberId);
+    const storedProfile = userProfilesByMember[memberKey];
+
+    if (storedProfile) {
+      setUserProfile(storedProfile);
+      return;
+    }
+
+    // Preserve the legacy single-profile value for users who completed
+    // onboarding before member-scoped persistence was introduced.
+    if (authSession.onboardingCompleted) {
+      setUserProfilesByMember((current) => ({
+        ...current,
+        [memberKey]: userProfile,
+      }));
+    }
+  }, [authSession, setUserProfile, setUserProfilesByMember, userProfile, userProfilesByMember]);
+
+  useEffect(() => {
     const provider = getOAuthProviderFromPath(pathname);
     const callbackKey = `${pathname}${window.location.search}`;
     if (!provider || oauthHandledPath.current === callbackKey) return;
@@ -414,8 +445,12 @@ export default function App() {
     setOauthCallback({ status: 'loading' });
     void completeSocialLogin(provider, window.location.search)
       .then((result) => {
-        if (!result.onboardingCompleted) setUserProfile(defaultUserProfile);
-        setAuthSession(createSocialAuthSession(provider, result));
+        const storedProfile = userProfilesByMember[String(result.memberId)];
+        setUserProfile(storedProfile ?? defaultUserProfile);
+        setAuthSession({
+          ...createSocialAuthSession(provider, result),
+          onboardingCompleted: result.onboardingCompleted || Boolean(storedProfile),
+        });
         window.history.replaceState({}, '', '/');
         setPathname('/');
       })
@@ -425,7 +460,17 @@ export default function App() {
           message: error instanceof Error ? error.message : '소셜 로그인을 완료하지 못했습니다.',
         });
       });
-  }, [pathname, setAuthSession]);
+  }, [pathname, setAuthSession, setUserProfile, userProfilesByMember]);
+
+  const persistProfileForCurrentMember = (profile: UserProfile) => {
+    setUserProfile(profile);
+    if (!authSession) return;
+
+    setUserProfilesByMember((current) => ({
+      ...current,
+      [String(authSession.memberId)]: profile,
+    }));
+  };
 
   useEffect(() => {
     const meetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
@@ -520,7 +565,7 @@ export default function App() {
       <OnboardingPage
         initialProfile={userProfile}
         onComplete={(profile) => {
-          setUserProfile(profile);
+          persistProfileForCurrentMember(profile);
           setAuthSession((current) => current ? { ...current, onboardingCompleted: true } : current);
           window.history.replaceState({}, '', '/');
           setPathname('/');
@@ -1710,7 +1755,7 @@ export default function App() {
             <ProfileExperience
               profile={userProfile}
               profileImageUrl={currentUser?.profileImageUrl}
-              onProfileChange={setUserProfile}
+              onProfileChange={persistProfileForCurrentMember}
               meetups={myMeetups}
               onSelectMeetup={(item) => {
                 const meetup = myMeetups.find(candidate => candidate.id === item.id);

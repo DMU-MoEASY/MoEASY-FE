@@ -58,7 +58,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
             <div className="relative h-40 overflow-hidden rounded-[18px] lg:h-48">
               <img src={photos[0]} alt="한강 러닝 모임" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
-              <span className="absolute left-3 top-3 rounded-full bg-[#C9FF5C] px-3 py-1 text-xs font-semibold text-[#193300]">D-1 · 참여 예정</span>
+              <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs font-semibold text-primary backdrop-blur">D-1 · 참여 예정</span>
               <div className="absolute bottom-3 left-3 right-3">
                 <p className="text-lg font-semibold">주간 러닝 모임</p>
                 <p className="mt-1 text-xs text-white/75">강남 러닝 크루</p>
@@ -83,11 +83,11 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           {featured.map((meetup, index) => (
-            <button key={meetup.id} onClick={() => onSelect(meetup)} className="group overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:border-slate-300">
+            <button key={meetup.id} onClick={() => onSelect(meetup)} className="group overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition hover:border-primary/35 hover:shadow-md">
               <div className="relative h-44 overflow-hidden">
                 <img src={photos[index]} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <span className="absolute left-4 top-4 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 backdrop-blur">{meetup.category}</span>
+                <span className="absolute left-4 top-4 rounded-md border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-primary backdrop-blur">{meetup.category}</span>
                 <div className="absolute bottom-4 left-4 right-4 text-white">
                   <h3 className="text-lg font-semibold">{meetup.name}</h3>
                   <p className="mt-1 flex items-center gap-1 text-xs text-white/75"><MapPin className="h-3.5 w-3.5" />{meetup.region}</p>
@@ -103,7 +103,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center justify-between">
             <div><p className="text-sm text-muted-foreground">다가오는 일정</p><h2 className="mt-1 text-xl font-semibold">이번 주 일정</h2></div>
             <CalendarDays className="h-5 w-5 text-muted-foreground" />

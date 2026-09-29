@@ -166,8 +166,8 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
 
         <div className="mt-9 grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
           <section className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-black/[0.05] sm:p-6">
-            <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectFile(event.target.files?.[0])} />
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => selectFile(event.target.files?.[0])} />
+            <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => { const selected = event.target.files?.[0]; event.target.value = ''; selectFile(selected); }} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const selected = event.target.files?.[0]; event.target.value = ''; selectFile(selected); }} />
 
             {previewUrl ? (
               <div className="relative flex min-h-[390px] items-center justify-center overflow-hidden rounded-[22px] bg-slate-950">

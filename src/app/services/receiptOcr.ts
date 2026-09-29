@@ -81,20 +81,16 @@ export async function recognizeReceiptImage(
     const originalCandidate = createCandidate(original.data.text, original.data.confidence, false);
 
     const candidates = [enhancedCandidate, originalCandidate];
-    const hasReliableTotal = candidates.some((candidate) => candidate.amountCandidates[0]?.confidence === 'high');
-    if (!hasReliableTotal) {
-      phase = 'focused';
-      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-      const focusedImage = cropReceiptBottom(enhancedImage);
-      const focused = await worker.recognize(focusedImage);
-      candidates.push(createCandidate(focused.data.text, focused.data.confidence, true));
-    }
+    phase = 'focused';
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+    const focusedImage = cropReceiptBottom(enhancedImage);
+    const focused = await worker.recognize(focusedImage);
+    candidates.push(createCandidate(focused.data.text, focused.data.confidence, true));
 
     const mergedCandidate = mergeCandidates(candidates);
     onProgress(1, '더 정확한 인식 결과를 선택했어요');
 
-    return [...candidates, mergedCandidate]
-      .sort((left, right) => scoreCandidate(right) - scoreCandidate(left))[0] ?? mergedCandidate;
+    return mergedCandidate;
   } finally {
     await worker.terminate().catch(() => undefined);
     onWorker(null);
@@ -230,18 +226,72 @@ function mergeCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
   const averageConfidence = candidates.length > 0
     ? candidates.reduce((sum, candidate) => sum + candidate.confidence, 0) / candidates.length
     : 0;
-  return createCandidate(mergedText, averageConfidence, candidates.some((candidate) => candidate.usedEnhancedImage));
+  const mergedCandidate = createCandidate(
+    mergedText,
+    averageConfidence,
+    candidates.some((candidate) => candidate.usedEnhancedImage),
+  );
+  const amountCandidates = mergeAmountCandidates(candidates, mergedCandidate.amountCandidates);
+
+  return {
+    ...mergedCandidate,
+    totalAmount: amountCandidates[0]?.amount ?? 0,
+    amountCandidates,
+  };
 }
 
-function scoreCandidate(candidate: ReceiptOcrResult) {
-  const meaningfulCharacters = candidate.rawText.replace(/\s/g, '').length;
-  const amountConfidence = candidate.amountCandidates[0]?.confidence;
-  return candidate.confidence
-    + Math.min(meaningfulCharacters, 160) * 0.12
-    + (candidate.storeName ? 8 : 0)
-    + (candidate.paidAt ? 8 : 0)
-    + (candidate.totalAmount > 0 ? 12 : -12)
-    + (amountConfidence === 'high' ? 18 : amountConfidence === 'medium' ? 8 : 0);
+function mergeAmountCandidates(
+  ocrCandidates: ReceiptOcrResult[],
+  parsedCandidates: ReceiptAmountCandidate[],
+) {
+  type AggregatedAmount = {
+    best: ReceiptAmountCandidate;
+    appearances: number;
+    score: number;
+  };
+
+  const aggregated = new Map<number, AggregatedAmount>();
+  const addCandidate = (candidate: ReceiptAmountCandidate, weight: number) => {
+    const confidenceScore = candidate.confidence === 'high' ? 90 : candidate.confidence === 'medium' ? 45 : 10;
+    const keywordScore = candidate.label === '금액 후보' || candidate.label === '원 표시 금액' ? 0 : 24;
+    const current = aggregated.get(candidate.amount);
+
+    if (!current) {
+      aggregated.set(candidate.amount, {
+        best: candidate,
+        appearances: weight > 0 ? 1 : 0,
+        score: confidenceScore + keywordScore + weight,
+      });
+      return;
+    }
+
+    const currentConfidence = current.best.confidence === 'high' ? 3 : current.best.confidence === 'medium' ? 2 : 1;
+    const nextConfidence = candidate.confidence === 'high' ? 3 : candidate.confidence === 'medium' ? 2 : 1;
+    current.appearances += weight > 0 ? 1 : 0;
+    current.score += weight;
+    if (nextConfidence > currentConfidence || (nextConfidence === currentConfidence && keywordScore > 0)) {
+      current.best = candidate;
+    }
+  };
+
+  ocrCandidates.forEach((ocrCandidate) => {
+    const uniqueAmounts = new Set<number>();
+    ocrCandidate.amountCandidates.forEach((candidate) => {
+      if (uniqueAmounts.has(candidate.amount)) return;
+      uniqueAmounts.add(candidate.amount);
+      addCandidate(candidate, 38);
+    });
+  });
+  parsedCandidates.forEach((candidate) => addCandidate(candidate, 0));
+
+  return [...aggregated.values()]
+    .sort((left, right) => (
+      right.score - left.score
+      || right.appearances - left.appearances
+      || right.best.amount - left.best.amount
+    ))
+    .slice(0, 3)
+    .map(({ best }) => best);
 }
 
 type ScoredAmount = ReceiptAmountCandidate & { score: number };

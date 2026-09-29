@@ -1,6 +1,7 @@
 export type ReceiptOcrResult = {
   rawText: string;
   storeName: string;
+  storeCandidates: string[];
   paidAt: string;
   totalAmount: number;
   amountCandidates: ReceiptAmountCandidate[];
@@ -41,6 +42,7 @@ const ignoredStoreWords = [
   '합계', '부가세', '공급가액', '과세', '면세', '봉사료', '결제', 'TEL', '전화', '주소',
 ];
 const storeLabelPattern = /(?:상호명?|가맹점명?|매장명|업체명|MERCHANT|STORE)\s*[:：\-]?\s*(.*)/i;
+const genericStoreTokens = new Set(['THE', 'PRE', 'SALE', 'TAX', 'TOTAL', 'CARD', 'NO', 'THANK', 'YOU']);
 
 export async function recognizeReceiptImage(
   image: File,
@@ -121,7 +123,8 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
-  const storeName = findStoreName(lines);
+  const storeCandidates = findStoreCandidates(lines);
+  const storeName = storeCandidates[0] ?? '';
 
   const datePattern = /(20\d{2})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})일?(?:\s+|\s*T\s*)?(\d{1,2})?[:시]?\s*(\d{2})?/;
   const dateMatch = rawText.match(datePattern);
@@ -132,26 +135,47 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   const amountCandidates = findAmountCandidates(lines);
   const totalAmount = amountCandidates[0]?.amount ?? 0;
 
-  return { rawText: rawText.trim(), storeName, paidAt, totalAmount, amountCandidates };
+  return { rawText: rawText.trim(), storeName, storeCandidates, paidAt, totalAmount, amountCandidates };
 }
 
-function findStoreName(lines: string[]) {
+function findStoreCandidates(lines: string[]) {
+  const candidates: Array<{ name: string; score: number }> = [];
+
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
     const match = line.match(storeLabelPattern);
     if (!match) continue;
 
     const inlineValue = cleanStoreName(match[1] ?? '');
-    if (isPlausibleStoreName(inlineValue)) return inlineValue;
+    if (isPlausibleStoreName(inlineValue)) candidates.push({ name: inlineValue, score: 260 - index });
 
     const nextLine = cleanStoreName(lines[index + 1] ?? '');
-    if (isPlausibleStoreName(nextLine)) return nextLine;
+    if (isPlausibleStoreName(nextLine)) candidates.push({ name: nextLine, score: 240 - index });
   }
 
-  return lines
-    .map((line, index) => ({ name: cleanStoreName(line), score: scoreStoreName(line, index) }))
-    .filter(({ name, score }) => score > 0 && isPlausibleStoreName(name))
-    .sort((left, right) => right.score - left.score)[0]?.name ?? '';
+  lines.forEach((line, index) => {
+    const name = cleanStoreName(line);
+    const score = scoreStoreName(line, index);
+    if (score > 0 && isPlausibleStoreName(name)) candidates.push({ name, score });
+
+    if (index >= 6 || !isGenericStoreToken(name)) return;
+    const nextName = cleanStoreName(lines[index + 1] ?? '');
+    if (isPlausibleStoreName(nextName)) {
+      candidates.push({ name: `${name} ${nextName}`, score: scoreStoreName(nextName, index) + 18 });
+    }
+  });
+
+  const unique = new Map<string, { name: string; score: number }>();
+  candidates.forEach((candidate) => {
+    const key = normalizeStoreName(candidate.name);
+    const current = unique.get(key);
+    if (!current || candidate.score > current.score) unique.set(key, candidate);
+  });
+
+  return [...unique.values()]
+    .sort((left, right) => right.score - left.score || right.name.length - left.name.length)
+    .slice(0, 4)
+    .map(({ name }) => name);
 }
 
 function cleanStoreName(value: string) {
@@ -168,9 +192,18 @@ function isPlausibleStoreName(value: string) {
     && value.length <= 32
     && /[가-힣A-Za-z]/.test(value)
     && !ignoredStoreWords.some((word) => upperValue.includes(word))
+    && !isGenericStoreToken(value)
     && !/^\d[\d\s.,:/-]+$/.test(value)
     && !/(?:https?:\/\/|www\.|@)/i.test(value)
     && !/\d{2,4}[-.)\s]\d{3,4}[-.\s]\d{4}/.test(value);
+}
+
+function isGenericStoreToken(value: string) {
+  return genericStoreTokens.has(value.toUpperCase().replace(/[^A-Z]/g, ''));
+}
+
+function normalizeStoreName(value: string) {
+  return value.toUpperCase().replace(/[^가-힣A-Z0-9]/g, '');
 }
 
 function scoreStoreName(line: string, index: number) {
@@ -284,33 +317,44 @@ function mergeCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
   );
   const amountCandidates = mergeAmountCandidates(candidates, mergedCandidate.amountCandidates);
 
+  const storeCandidates = selectMergedStoreCandidates(candidates, mergedCandidate.storeCandidates);
+
   return {
     ...mergedCandidate,
-    storeName: selectMergedStoreName(candidates, mergedCandidate.storeName),
+    storeName: storeCandidates[0] ?? '',
+    storeCandidates,
     totalAmount: amountCandidates[0]?.amount ?? 0,
     amountCandidates,
   };
 }
 
-function selectMergedStoreName(candidates: ReceiptOcrResult[], fallback: string) {
-  const grouped = new Map<string, { name: string; count: number; confidence: number }>();
+function selectMergedStoreCandidates(candidates: ReceiptOcrResult[], fallback: string[]) {
+  const grouped = new Map<string, { name: string; count: number; score: number }>();
 
   candidates.forEach((candidate) => {
-    if (!candidate.storeName) return;
-    const key = candidate.storeName.toUpperCase().replace(/[^가-힣A-Z0-9]/g, '');
-    if (!key) return;
-    const current = grouped.get(key);
-    if (current) {
-      current.count += 1;
-      current.confidence = Math.max(current.confidence, candidate.confidence);
-    } else {
-      grouped.set(key, { name: candidate.storeName, count: 1, confidence: candidate.confidence });
-    }
+    candidate.storeCandidates.forEach((name, index) => {
+      const key = normalizeStoreName(name);
+      if (!key) return;
+      const current = grouped.get(key);
+      const rankScore = Math.max(0, 32 - index * 8);
+      if (current) {
+        current.count += 1;
+        current.score += 80 + rankScore;
+      } else {
+        grouped.set(key, { name, count: 1, score: candidate.confidence + rankScore });
+      }
+    });
+  });
+  fallback.forEach((name, index) => {
+    const key = normalizeStoreName(name);
+    if (!key || grouped.has(key)) return;
+    grouped.set(key, { name, count: 0, score: Math.max(0, 24 - index * 6) });
   });
 
   return [...grouped.values()]
-    .sort((left, right) => right.count - left.count || right.confidence - left.confidence)[0]?.name
-    ?? fallback;
+    .sort((left, right) => right.count - left.count || right.score - left.score || right.name.length - left.name.length)
+    .slice(0, 4)
+    .map(({ name }) => name);
 }
 
 function mergeAmountCandidates(

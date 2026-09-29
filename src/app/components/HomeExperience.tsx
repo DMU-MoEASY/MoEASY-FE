@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, Clock3, MapPin, Plus, Sparkles, Users, Zap } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clock3, MapPin, Plus, Sparkles, Users } from 'lucide-react';
 
 type Meetup = {
   id: number;
@@ -76,18 +76,18 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
       <section>
         <div className="mb-5 flex items-end justify-between">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">My circles</p>
-            <h2 className="text-2xl font-semibold tracking-[-0.03em]">이어가고 있는 모임</h2>
+            <p className="mb-1 text-sm text-muted-foreground">내 모임</p>
+            <h2 className="text-2xl font-semibold tracking-[-0.03em]">참여 중인 모임</h2>
           </div>
           <button className="hidden items-center gap-1 text-sm text-muted-foreground hover:text-foreground sm:flex">전체 보기 <ArrowRight className="h-4 w-4" /></button>
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           {featured.map((meetup, index) => (
-            <button key={meetup.id} onClick={() => onSelect(meetup)} className="group overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-black/[0.06] transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/10">
+            <button key={meetup.id} onClick={() => onSelect(meetup)} className="group overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:border-slate-300">
               <div className="relative h-44 overflow-hidden">
                 <img src={photos[index]} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 backdrop-blur">{meetup.category}</span>
+                <span className="absolute left-4 top-4 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 backdrop-blur">{meetup.category}</span>
                 <div className="absolute bottom-4 left-4 right-4 text-white">
                   <h3 className="text-lg font-semibold">{meetup.name}</h3>
                   <p className="mt-1 flex items-center gap-1 text-xs text-white/75"><MapPin className="h-3.5 w-3.5" />{meetup.region}</p>
@@ -103,9 +103,9 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-        <div className="rounded-[24px] bg-card p-5 ring-1 ring-black/[0.06] sm:p-6">
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="mb-5 flex items-center justify-between">
-            <div><p className="text-xs font-semibold text-primary">UP NEXT</p><h2 className="mt-1 text-xl font-semibold">이번 주 일정</h2></div>
+            <div><p className="text-sm text-muted-foreground">다가오는 일정</p><h2 className="mt-1 text-xl font-semibold">이번 주 일정</h2></div>
             <CalendarDays className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="space-y-1">
@@ -122,10 +122,9 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
             ))}
           </div>
         </div>
-        <button onClick={onOpenMap} className="group relative min-h-64 overflow-hidden rounded-[24px] bg-[#DCE7FF] p-6 text-left ring-1 ring-black/[0.04]">
-          <div className="absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_70%_20%,white_0,transparent_26%),linear-gradient(135deg,transparent_45%,rgba(255,255,255,.8)_46%,rgba(255,255,255,.8)_51%,transparent_52%)]" />
+        <button onClick={onOpenMap} className="group relative min-h-64 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-6 text-left">
           <div className="relative flex h-full flex-col justify-between">
-            <div className="flex items-start justify-between"><span className="rounded-full bg-[#101828] px-3 py-1.5 text-xs font-medium text-white">LIVE MAP</span><Zap className="h-5 w-5 text-primary" /></div>
+            <div className="flex items-start justify-between"><span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-slate-600">주변 모임</span><MapPin className="h-5 w-5 text-slate-500" /></div>
             <div><p className="text-4xl font-semibold tracking-tight">3</p><h3 className="mt-1 text-lg font-semibold">지금 참여 가능한 번개</h3><p className="mt-2 text-sm text-slate-600">내 주변 2km 안에서 열리고 있어요.</p></div>
           </div>
         </button>

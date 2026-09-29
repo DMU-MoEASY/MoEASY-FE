@@ -27,6 +27,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
   const [progressLabel, setProgressLabel] = useState('');
   const [error, setError] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [storeCandidates, setStoreCandidates] = useState<string[]>([]);
   const [paidAt, setPaidAt] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(['me']);
@@ -87,6 +88,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
       );
       if (cancelledRef.current) return;
       setStoreName(result.storeName);
+      setStoreCandidates(result.storeCandidates);
       setPaidAt(result.paidAt);
       setTotalAmount(result.totalAmount ? String(result.totalAmount) : '');
       setRawText(result.rawText);
@@ -122,6 +124,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
     setProgressLabel('');
     setError('');
     setStoreName('');
+    setStoreCandidates([]);
     setPaidAt('');
     setTotalAmount('');
     setSelectedMemberIds(['me']);
@@ -133,6 +136,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
   const reanalyzeRawText = () => {
     const parsed = parseReceiptText(rawText);
     setStoreName(parsed.storeName);
+    setStoreCandidates(parsed.storeCandidates);
     setPaidAt(parsed.paidAt);
     setTotalAmount(parsed.totalAmount ? String(parsed.totalAmount) : '');
     setAmountCandidates(parsed.amountCandidates);
@@ -166,8 +170,8 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
 
         <div className="mt-9 grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
           <section className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-black/[0.05] sm:p-6">
-            <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectFile(event.target.files?.[0])} />
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => selectFile(event.target.files?.[0])} />
+            <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => { const selected = event.target.files?.[0]; event.target.value = ''; selectFile(selected); }} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const selected = event.target.files?.[0]; event.target.value = ''; selectFile(selected); }} />
 
             {previewUrl ? (
               <div className="relative flex min-h-[390px] items-center justify-center overflow-hidden rounded-[22px] bg-slate-950">
@@ -197,7 +201,7 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
             <div className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-black/[0.05] sm:p-7">
               <div className="flex items-center justify-between"><div><p className="text-xs font-semibold text-blue-600">EXTRACTED DATA</p><h2 className="mt-1 text-xl font-semibold text-slate-900">인식 결과</h2></div>{status === 'done' && <OcrQualityBadge confidence={ocrConfidence} />}</div>
               {status === 'idle' || status === 'ready' || status === 'recognizing' ? <div className="mt-8 flex min-h-[290px] flex-col items-center justify-center rounded-2xl bg-slate-50 text-center"><FileImage className="h-8 w-8 text-slate-300" /><p className="mt-4 text-sm font-medium text-slate-500">OCR 분석이 끝나면 결과가 표시돼요.</p></div> : <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                <OcrField label="사용처"><input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="상호명을 확인해주세요" className="form-input" /></OcrField>
+                <OcrField label="사용처"><input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="상호명을 확인해주세요" className="form-input" />{storeCandidates.length > 1 && <div className="mt-2 flex flex-wrap gap-2" aria-label="인식된 사용처 후보">{storeCandidates.map((candidate) => <button key={candidate} type="button" onClick={() => setStoreName(candidate)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${storeName === candidate ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>{candidate}</button>)}</div>}</OcrField>
                 <OcrField label="결제 일시"><input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} className="form-input" /></OcrField>
                 <OcrField label="총 결제 금액"><div className="relative"><input inputMode="numeric" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value.replace(/[^\d]/g, ''))} placeholder="0" className="form-input pr-10" /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">원</span></div>{amountCandidates.length > 1 && <div className="mt-2 flex flex-wrap gap-2" aria-label="인식된 금액 후보">{amountCandidates.map((candidate) => <button key={`${candidate.amount}-${candidate.label}`} type="button" onClick={() => setTotalAmount(String(candidate.amount))} title={candidate.sourceLine} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${amountNumber === candidate.amount ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>{candidate.amount.toLocaleString('ko-KR')}원 <span className="opacity-70">· {candidate.label}</span></button>)}</div>}</OcrField>
                 <div className="rounded-xl bg-blue-50 px-4 py-3.5"><span className="flex items-center gap-2 text-xs font-medium text-blue-700"><Users className="h-4 w-4" />선택된 정산 대상</span><strong className="mt-1 block text-lg text-blue-950">{members}명</strong></div>

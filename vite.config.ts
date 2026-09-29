@@ -58,6 +58,23 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
+            urlPattern: ({ url }) => (
+              url.origin === 'https://cdn.jsdelivr.net'
+              && (url.pathname.includes('/tesseract.js') || url.pathname.includes('/@tesseract.js-data/'))
+            ),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'moeasy-tesseract-runtime',
+              expiration: {
+                maxEntries: 12,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
             urlPattern: ({ request, url }) => (
               url.origin === self.location.origin && request.destination === 'image'
             ),

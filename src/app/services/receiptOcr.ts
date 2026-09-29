@@ -1,6 +1,7 @@
 export type ReceiptOcrResult = {
   rawText: string;
   storeName: string;
+  storeCandidates: string[];
   paidAt: string;
   totalAmount: number;
   amountCandidates: ReceiptAmountCandidate[];
@@ -35,7 +36,13 @@ const ignoredAmountWords = [
   '가맹점번호', '고객번호', '전화', 'TEL', '대표자', '일시', '날짜', '부가세', '부가가치세',
   '소계', '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
 ];
-const ignoredStoreWords = ['영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자'];
+const ignoredStoreWords = [
+  '영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자', '승인번호',
+  '카드번호', '거래번호', '주문번호', '고객번호', '품명', '상품명', '수량', '단가', '금액',
+  '합계', '부가세', '공급가액', '과세', '면세', '봉사료', '결제', 'TEL', '전화', '주소',
+];
+const storeLabelPattern = /(?:상호명?|가맹점명?|매장명|업체명|MERCHANT|STORE)\s*[:：\-]?\s*(.*)/i;
+const genericStoreTokens = new Set(['THE', 'PRE', 'SALE', 'TAX', 'TOTAL', 'CARD', 'NO', 'THANK', 'YOU']);
 
 export async function recognizeReceiptImage(
   image: File,
@@ -81,20 +88,16 @@ export async function recognizeReceiptImage(
     const originalCandidate = createCandidate(original.data.text, original.data.confidence, false);
 
     const candidates = [enhancedCandidate, originalCandidate];
-    const hasReliableTotal = candidates.some((candidate) => candidate.amountCandidates[0]?.confidence === 'high');
-    if (!hasReliableTotal) {
-      phase = 'focused';
-      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-      const focusedImage = cropReceiptBottom(enhancedImage);
-      const focused = await worker.recognize(focusedImage);
-      candidates.push(createCandidate(focused.data.text, focused.data.confidence, true));
-    }
+    phase = 'focused';
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+    const focusedImage = cropReceiptBottom(enhancedImage);
+    const focused = await worker.recognize(focusedImage);
+    candidates.push(createCandidate(focused.data.text, focused.data.confidence, true));
 
     const mergedCandidate = mergeCandidates(candidates);
     onProgress(1, '더 정확한 인식 결과를 선택했어요');
 
-    return [...candidates, mergedCandidate]
-      .sort((left, right) => scoreCandidate(right) - scoreCandidate(left))[0] ?? mergedCandidate;
+    return mergedCandidate;
   } finally {
     await worker.terminate().catch(() => undefined);
     onWorker(null);
@@ -120,13 +123,8 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
-  const storeName = lines.find((line) => (
-    line.length >= 2
-    && line.length <= 32
-    && /[가-힣A-Za-z]/.test(line)
-    && !ignoredStoreWords.some((word) => line.toUpperCase().includes(word))
-    && !/^\d[\d\s.,:/-]+$/.test(line)
-  )) ?? '';
+  const storeCandidates = findStoreCandidates(lines);
+  const storeName = storeCandidates[0] ?? '';
 
   const datePattern = /(20\d{2})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})일?(?:\s+|\s*T\s*)?(\d{1,2})?[:시]?\s*(\d{2})?/;
   const dateMatch = rawText.match(datePattern);
@@ -137,7 +135,89 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   const amountCandidates = findAmountCandidates(lines);
   const totalAmount = amountCandidates[0]?.amount ?? 0;
 
-  return { rawText: rawText.trim(), storeName, paidAt, totalAmount, amountCandidates };
+  return { rawText: rawText.trim(), storeName, storeCandidates, paidAt, totalAmount, amountCandidates };
+}
+
+function findStoreCandidates(lines: string[]) {
+  const candidates: Array<{ name: string; score: number }> = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    const match = line.match(storeLabelPattern);
+    if (!match) continue;
+
+    const inlineValue = cleanStoreName(match[1] ?? '');
+    if (isPlausibleStoreName(inlineValue)) candidates.push({ name: inlineValue, score: 260 - index });
+
+    const nextLine = cleanStoreName(lines[index + 1] ?? '');
+    if (isPlausibleStoreName(nextLine)) candidates.push({ name: nextLine, score: 240 - index });
+  }
+
+  lines.forEach((line, index) => {
+    const name = cleanStoreName(line);
+    const score = scoreStoreName(line, index);
+    if (score > 0 && isPlausibleStoreName(name)) candidates.push({ name, score });
+
+    if (index >= 6 || !isGenericStoreToken(name)) return;
+    const nextName = cleanStoreName(lines[index + 1] ?? '');
+    if (isPlausibleStoreName(nextName)) {
+      candidates.push({ name: `${name} ${nextName}`, score: scoreStoreName(nextName, index) + 18 });
+    }
+  });
+
+  const unique = new Map<string, { name: string; score: number }>();
+  candidates.forEach((candidate) => {
+    const key = normalizeStoreName(candidate.name);
+    const current = unique.get(key);
+    if (!current || candidate.score > current.score) unique.set(key, candidate);
+  });
+
+  return [...unique.values()]
+    .sort((left, right) => right.score - left.score || right.name.length - left.name.length)
+    .slice(0, 4)
+    .map(({ name }) => name);
+}
+
+function cleanStoreName(value: string) {
+  return value
+    .replace(storeLabelPattern, '$1')
+    .replace(/^[\s※*#|:：\-]+|[\s※*#|:：\-]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function isPlausibleStoreName(value: string) {
+  const upperValue = value.toUpperCase();
+  return value.length >= 2
+    && value.length <= 32
+    && /[가-힣A-Za-z]/.test(value)
+    && !ignoredStoreWords.some((word) => upperValue.includes(word))
+    && !isGenericStoreToken(value)
+    && !/^\d[\d\s.,:/-]+$/.test(value)
+    && !/(?:https?:\/\/|www\.|@)/i.test(value)
+    && !/\d{2,4}[-.)\s]\d{3,4}[-.\s]\d{4}/.test(value);
+}
+
+function isGenericStoreToken(value: string) {
+  return genericStoreTokens.has(value.toUpperCase().replace(/[^A-Z]/g, ''));
+}
+
+function normalizeStoreName(value: string) {
+  return value.toUpperCase().replace(/[^가-힣A-Z0-9]/g, '');
+}
+
+function scoreStoreName(line: string, index: number) {
+  const value = cleanStoreName(line);
+  if (!isPlausibleStoreName(value)) return -100;
+
+  let score = Math.max(0, 42 - index * 4);
+  if (/[가-힣]/.test(value)) score += 12;
+  if (/(?:점|마트|마켓|카페|커피|식당|스토어|편의점|백화점|약국|서점|SHOP|CAFE|MART)$/i.test(value)) score += 24;
+  if (/^(?:주식회사|\(주\)|㈜)/.test(value)) score += 10;
+  if (/\d{4,}/.test(value)) score -= 30;
+  if (/(?:특별시|광역시|[가-힣]+[시군구])\s|[가-힣\d]+(?:로|길)\s*\d*/.test(value)) score -= 28;
+  if (/[₩￦]|\d[,.]\d{3}|\d+\s*원/.test(value)) score -= 45;
+  return score;
 }
 
 async function preprocessReceiptImage(image: File) {
@@ -230,18 +310,105 @@ function mergeCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
   const averageConfidence = candidates.length > 0
     ? candidates.reduce((sum, candidate) => sum + candidate.confidence, 0) / candidates.length
     : 0;
-  return createCandidate(mergedText, averageConfidence, candidates.some((candidate) => candidate.usedEnhancedImage));
+  const mergedCandidate = createCandidate(
+    mergedText,
+    averageConfidence,
+    candidates.some((candidate) => candidate.usedEnhancedImage),
+  );
+  const amountCandidates = mergeAmountCandidates(candidates, mergedCandidate.amountCandidates);
+
+  const storeCandidates = selectMergedStoreCandidates(candidates, mergedCandidate.storeCandidates);
+
+  return {
+    ...mergedCandidate,
+    storeName: storeCandidates[0] ?? '',
+    storeCandidates,
+    totalAmount: amountCandidates[0]?.amount ?? 0,
+    amountCandidates,
+  };
 }
 
-function scoreCandidate(candidate: ReceiptOcrResult) {
-  const meaningfulCharacters = candidate.rawText.replace(/\s/g, '').length;
-  const amountConfidence = candidate.amountCandidates[0]?.confidence;
-  return candidate.confidence
-    + Math.min(meaningfulCharacters, 160) * 0.12
-    + (candidate.storeName ? 8 : 0)
-    + (candidate.paidAt ? 8 : 0)
-    + (candidate.totalAmount > 0 ? 12 : -12)
-    + (amountConfidence === 'high' ? 18 : amountConfidence === 'medium' ? 8 : 0);
+function selectMergedStoreCandidates(candidates: ReceiptOcrResult[], fallback: string[]) {
+  const grouped = new Map<string, { name: string; count: number; score: number }>();
+
+  candidates.forEach((candidate) => {
+    candidate.storeCandidates.forEach((name, index) => {
+      const key = normalizeStoreName(name);
+      if (!key) return;
+      const current = grouped.get(key);
+      const rankScore = Math.max(0, 32 - index * 8);
+      if (current) {
+        current.count += 1;
+        current.score += 80 + rankScore;
+      } else {
+        grouped.set(key, { name, count: 1, score: candidate.confidence + rankScore });
+      }
+    });
+  });
+  fallback.forEach((name, index) => {
+    const key = normalizeStoreName(name);
+    if (!key || grouped.has(key)) return;
+    grouped.set(key, { name, count: 0, score: Math.max(0, 24 - index * 6) });
+  });
+
+  return [...grouped.values()]
+    .sort((left, right) => right.count - left.count || right.score - left.score || right.name.length - left.name.length)
+    .slice(0, 4)
+    .map(({ name }) => name);
+}
+
+function mergeAmountCandidates(
+  ocrCandidates: ReceiptOcrResult[],
+  parsedCandidates: ReceiptAmountCandidate[],
+) {
+  type AggregatedAmount = {
+    best: ReceiptAmountCandidate;
+    appearances: number;
+    score: number;
+  };
+
+  const aggregated = new Map<number, AggregatedAmount>();
+  const addCandidate = (candidate: ReceiptAmountCandidate, weight: number) => {
+    const confidenceScore = candidate.confidence === 'high' ? 90 : candidate.confidence === 'medium' ? 45 : 10;
+    const keywordScore = candidate.label === '금액 후보' || candidate.label === '원 표시 금액' ? 0 : 24;
+    const current = aggregated.get(candidate.amount);
+
+    if (!current) {
+      aggregated.set(candidate.amount, {
+        best: candidate,
+        appearances: weight > 0 ? 1 : 0,
+        score: confidenceScore + keywordScore + weight,
+      });
+      return;
+    }
+
+    const currentConfidence = current.best.confidence === 'high' ? 3 : current.best.confidence === 'medium' ? 2 : 1;
+    const nextConfidence = candidate.confidence === 'high' ? 3 : candidate.confidence === 'medium' ? 2 : 1;
+    current.appearances += weight > 0 ? 1 : 0;
+    current.score += weight;
+    if (nextConfidence > currentConfidence || (nextConfidence === currentConfidence && keywordScore > 0)) {
+      current.best = candidate;
+    }
+  };
+
+  ocrCandidates.forEach((ocrCandidate) => {
+    const uniqueAmounts = new Set<number>();
+    ocrCandidate.amountCandidates.forEach((candidate) => {
+      if (uniqueAmounts.has(candidate.amount)) return;
+      uniqueAmounts.add(candidate.amount);
+      addCandidate(candidate, 38);
+    });
+  });
+  parsedCandidates.forEach((candidate) => addCandidate(candidate, 0));
+
+  return [...aggregated.values()]
+    .sort((left, right) => (
+      right.score - left.score
+      || right.appearances - left.appearances
+      || right.best.amount - left.best.amount
+    ))
+    .slice(0, 3)
+    .map(({ best }) => best);
 }
 
 type ScoredAmount = ReceiptAmountCandidate & { score: number };

@@ -35,7 +35,12 @@ const ignoredAmountWords = [
   '가맹점번호', '고객번호', '전화', 'TEL', '대표자', '일시', '날짜', '부가세', '부가가치세',
   '소계', '과세', '면세', '세액', '봉사료', '할인', '수량', '단가',
 ];
-const ignoredStoreWords = ['영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자'];
+const ignoredStoreWords = [
+  '영수증', '신용카드', '카드전표', '매출전표', 'RECEIPT', '사업자', '대표자', '승인번호',
+  '카드번호', '거래번호', '주문번호', '고객번호', '품명', '상품명', '수량', '단가', '금액',
+  '합계', '부가세', '공급가액', '과세', '면세', '봉사료', '결제', 'TEL', '전화', '주소',
+];
+const storeLabelPattern = /(?:상호명?|가맹점명?|매장명|업체명|MERCHANT|STORE)\s*[:：\-]?\s*(.*)/i;
 
 export async function recognizeReceiptImage(
   image: File,
@@ -116,13 +121,7 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
-  const storeName = lines.find((line) => (
-    line.length >= 2
-    && line.length <= 32
-    && /[가-힣A-Za-z]/.test(line)
-    && !ignoredStoreWords.some((word) => line.toUpperCase().includes(word))
-    && !/^\d[\d\s.,:/-]+$/.test(line)
-  )) ?? '';
+  const storeName = findStoreName(lines);
 
   const datePattern = /(20\d{2})[.\-/년]\s*(\d{1,2})[.\-/월]\s*(\d{1,2})일?(?:\s+|\s*T\s*)?(\d{1,2})?[:시]?\s*(\d{2})?/;
   const dateMatch = rawText.match(datePattern);
@@ -134,6 +133,58 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   const totalAmount = amountCandidates[0]?.amount ?? 0;
 
   return { rawText: rawText.trim(), storeName, paidAt, totalAmount, amountCandidates };
+}
+
+function findStoreName(lines: string[]) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    const match = line.match(storeLabelPattern);
+    if (!match) continue;
+
+    const inlineValue = cleanStoreName(match[1] ?? '');
+    if (isPlausibleStoreName(inlineValue)) return inlineValue;
+
+    const nextLine = cleanStoreName(lines[index + 1] ?? '');
+    if (isPlausibleStoreName(nextLine)) return nextLine;
+  }
+
+  return lines
+    .map((line, index) => ({ name: cleanStoreName(line), score: scoreStoreName(line, index) }))
+    .filter(({ name, score }) => score > 0 && isPlausibleStoreName(name))
+    .sort((left, right) => right.score - left.score)[0]?.name ?? '';
+}
+
+function cleanStoreName(value: string) {
+  return value
+    .replace(storeLabelPattern, '$1')
+    .replace(/^[\s※*#|:：\-]+|[\s※*#|:：\-]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function isPlausibleStoreName(value: string) {
+  const upperValue = value.toUpperCase();
+  return value.length >= 2
+    && value.length <= 32
+    && /[가-힣A-Za-z]/.test(value)
+    && !ignoredStoreWords.some((word) => upperValue.includes(word))
+    && !/^\d[\d\s.,:/-]+$/.test(value)
+    && !/(?:https?:\/\/|www\.|@)/i.test(value)
+    && !/\d{2,4}[-.)\s]\d{3,4}[-.\s]\d{4}/.test(value);
+}
+
+function scoreStoreName(line: string, index: number) {
+  const value = cleanStoreName(line);
+  if (!isPlausibleStoreName(value)) return -100;
+
+  let score = Math.max(0, 42 - index * 4);
+  if (/[가-힣]/.test(value)) score += 12;
+  if (/(?:점|마트|마켓|카페|커피|식당|스토어|편의점|백화점|약국|서점|SHOP|CAFE|MART)$/i.test(value)) score += 24;
+  if (/^(?:주식회사|\(주\)|㈜)/.test(value)) score += 10;
+  if (/\d{4,}/.test(value)) score -= 30;
+  if (/(?:특별시|광역시|[가-힣]+[시군구])\s|[가-힣\d]+(?:로|길)\s*\d*/.test(value)) score -= 28;
+  if (/[₩￦]|\d[,.]\d{3}|\d+\s*원/.test(value)) score -= 45;
+  return score;
 }
 
 async function preprocessReceiptImage(image: File) {
@@ -235,9 +286,31 @@ function mergeCandidates(candidates: ReceiptOcrResult[]): ReceiptOcrResult {
 
   return {
     ...mergedCandidate,
+    storeName: selectMergedStoreName(candidates, mergedCandidate.storeName),
     totalAmount: amountCandidates[0]?.amount ?? 0,
     amountCandidates,
   };
+}
+
+function selectMergedStoreName(candidates: ReceiptOcrResult[], fallback: string) {
+  const grouped = new Map<string, { name: string; count: number; confidence: number }>();
+
+  candidates.forEach((candidate) => {
+    if (!candidate.storeName) return;
+    const key = candidate.storeName.toUpperCase().replace(/[^가-힣A-Z0-9]/g, '');
+    if (!key) return;
+    const current = grouped.get(key);
+    if (current) {
+      current.count += 1;
+      current.confidence = Math.max(current.confidence, candidate.confidence);
+    } else {
+      grouped.set(key, { name: candidate.storeName, count: 1, confidence: candidate.confidence });
+    }
+  });
+
+  return [...grouped.values()]
+    .sort((left, right) => right.count - left.count || right.confidence - left.confidence)[0]?.name
+    ?? fallback;
 }
 
 function mergeAmountCandidates(

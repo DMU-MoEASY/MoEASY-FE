@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, LoaderCircle, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
-import type { SocialProvider } from '../services/p0Api';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
@@ -27,37 +26,6 @@ function PageFrame({ eyebrow, title, description, onBack, action, children, dark
       {children}
     </main>
   </div>;
-}
-
-export function SignupExperience({
-  onBack,
-  onSocialSignup,
-}: {
-  onBack: () => void;
-  onSocialSignup: (provider: SocialProvider) => Promise<void>;
-}) {
-  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
-  const [signupError, setSignupError] = useState('');
-
-  const startSocialSignup = async (provider: SocialProvider) => {
-    setSignupError('');
-    try {
-      setSocialLoading(provider);
-      await onSocialSignup(provider);
-    } catch (error) {
-      setSocialLoading(null);
-      setSignupError(error instanceof Error ? error.message : '소셜 회원가입을 시작하지 못했습니다.');
-    }
-  };
-
-  return <main className="min-h-screen bg-[#F4F6FA] p-3 sm:p-5 lg:p-7"><div className="mx-auto grid min-h-[calc(100vh-24px)] max-w-[1320px] overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-900/10 lg:grid-cols-[.8fr_1.2fr]">
-    <aside className="relative hidden overflow-hidden bg-[#101828] p-10 text-white lg:flex lg:flex-col lg:justify-between"><div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_30%_20%,#315EFB_0,transparent_35%),radial-gradient(circle_at_80%_90%,#C9FF5C_0,transparent_30%)]"/><img src="/brand/moeasy-logo.png" alt="MoEasy" className="relative h-12 w-auto self-start object-contain"/><div className="relative"><p className="text-xs font-semibold tracking-[0.18em] text-[#8FAAFF]">START A NEW CIRCLE</p><h1 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em]">새로운 사람과<br/>새로운 일상을 시작해요.</h1><div className="mt-10 space-y-5">{['소셜 계정으로 안전하게 시작','관심사에 맞는 모임 발견','일정과 장소를 한 번에 관리'].map((item,index)=><div key={item} className="flex items-center gap-3 text-sm text-slate-300"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-[11px]">0{index+1}</span>{item}</div>)}</div></div></aside>
-    <section className="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-20"><div className="w-full max-w-lg"><button onClick={onBack} className="mb-8 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4"/>로그인으로</button><p className="text-xs font-semibold text-primary">CREATE ACCOUNT</p><h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">소셜 계정으로 시작하기</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">카카오 또는 Google 계정을 연결한 뒤 닉네임과 관심사를 설정할 수 있어요.</p>
-      <div className="mt-8 space-y-3"><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('KAKAO')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] py-4 text-sm font-semibold text-[#181600] disabled:cursor-wait disabled:opacity-60">{socialLoading==='KAKAO'?<LoaderCircle className="h-5 w-5 animate-spin"/>:<span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-[#FEE500]">K</span>}카카오로 가입하기</button><button disabled={socialLoading!==null} onClick={()=>void startSocialSignup('GOOGLE')} className="flex w-full items-center justify-center gap-3 rounded-xl py-4 text-sm font-semibold ring-1 ring-black/10 disabled:cursor-wait disabled:opacity-60">{socialLoading==='GOOGLE'?<LoaderCircle className="h-5 w-5 animate-spin"/>:<span className="font-bold text-[#4285F4]">G</span>}Google로 가입하기</button></div>
-      {signupError&&<p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{signupError}</p>}
-      <div className="mt-7 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-500 ring-1 ring-black/[0.05]"><p className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"/>가입을 계속하면 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.</p><p className="mt-2 flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"/>MoEasy는 별도의 이메일 비밀번호를 저장하지 않습니다.</p></div>
-    </div></section>
-  </div></main>;
 }
 
 export function NotificationsExperience({ onBack }: { onBack: () => void }) {

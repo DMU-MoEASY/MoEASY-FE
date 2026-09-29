@@ -9,7 +9,6 @@ import { MeetupDetailExperience } from './components/MeetupDetailExperience';
 import { ScheduleExperience } from './components/ScheduleExperience';
 import { ProfileExperience } from './components/ProfileExperience';
 import {
-  SignupExperience,
   NotificationsExperience,
   MessagesExperience,
   GalleryExperience,
@@ -56,7 +55,7 @@ import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { OnboardingPage } from './components/OnboardingPage';
-import { beginSocialLogin, completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
+import { completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
 import { authApi, userApi, type UserSummary } from './services/p0Api';
 import {
   AUTH_SESSION_KEY,
@@ -355,7 +354,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
   const isLoggedIn = authSession !== null;
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
-  const [showSignup, setShowSignup] = useState(false);
   const [activeTab, setActiveTab] = useState(pathTabs[pathname] ?? 'home');
   const [myMeetups, setMyMeetups] = usePersistentState('moeasy:myMeetups', meetups);
   const [exploreMeetups, setExploreMeetups] = usePersistentState('moeasy:exploreMeetups', discoverMeetups);
@@ -511,22 +509,10 @@ export default function App() {
     );
   }
 
-  // Show login/signup screens if not logged in
+  // Social login is the only entry point. New members continue to onboarding
+  // according to the backend callback response.
   if (!isLoggedIn) {
-    if (showSignup) {
-      return (
-        <SignupExperience
-          onBack={() => setShowSignup(false)}
-          onSocialSignup={beginSocialLogin}
-        />
-      );
-    }
-
-    return (
-      <LoginPage
-        onSignupClick={() => setShowSignup(true)}
-      />
-    );
+    return <LoginPage />;
   }
 
   if (!authSession.onboardingCompleted) {

@@ -90,6 +90,30 @@ export const authApi = {
   },
 };
 
+export type RegionDetail = { code: string; name: string };
+export type RegionProvince = { provinceName: string; regions: RegionDetail[] };
+
+export type OnboardingInput = {
+  nickname: string;
+  statusMessage?: string;
+  regionCode: string;
+  categoryCodes: string[];
+};
+
+export const memberApi = {
+  checkNickname: (nickname: string) => apiRequest<{ available: boolean }>(
+    `/members/nicknames/availability?${new URLSearchParams({ nickname }).toString()}`,
+  ),
+  completeOnboarding: (input: OnboardingInput) => apiRequest<SocialLoginResult>(
+    '/members/me/onboarding',
+    { method: 'POST', body: input },
+  ),
+};
+
+export const regionApi = {
+  list: () => apiRequest<RegionProvince[]>('/regions'),
+};
+
 export const userApi = {
   getMe: () => apiRequest<UserSummary>('/users/me'),
   getMyMeetups: () => apiRequest<PageResult<MeetupSummary>>('/users/me/clubs'),

@@ -2,6 +2,7 @@ export type UserProfile = {
   nickname: string;
   bio: string;
   activityRegion: string;
+  regionCode?: string;
   interests: string[];
 };
 
@@ -29,6 +30,25 @@ export const onboardingInterestOptions = [
   '봉사',
   '개발',
 ];
+
+// Backend category codes seeded by the onboarding migration, keyed by the
+// Korean label shown in the UI.
+export const interestCategoryCodes: Record<string, string> = {
+  러닝: 'RUNNING',
+  등산: 'HIKING',
+  스터디: 'STUDY',
+  독서: 'READING',
+  사진: 'PHOTOGRAPHY',
+  맛집: 'FOOD',
+  보드게임: 'BOARD_GAME',
+  여행: 'TRAVEL',
+  봉사: 'VOLUNTEERING',
+  개발: 'DEVELOPMENT',
+};
+
+export function formatRegionName(provinceName: string, regionName: string) {
+  return regionName === provinceName ? regionName : `${provinceName} ${regionName}`;
+}
 
 export const activityRegionGroups = [
   {

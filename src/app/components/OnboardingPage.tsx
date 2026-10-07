@@ -1,6 +1,20 @@
-import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, MapPin, Sparkles, UserRound } from 'lucide-react';
-import { activityRegionGroups, activityRegionOptions, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, MapPin, Sparkles, UserRound } from 'lucide-react';
+import { ApiError } from '../lib/apiClient';
+import { memberApi, regionApi, type RegionProvince } from '../services/p0Api';
+import {
+  formatRegionName,
+  interestCategoryCodes,
+  onboardingInterestOptions,
+  type UserProfile,
+} from '../services/userProfile';
+
+function toErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    return error.fieldErrors?.[0]?.message ?? error.message;
+  }
+  return fallback;
+}
 
 interface OnboardingPageProps {
   initialProfile: UserProfile;
@@ -15,17 +29,57 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
   const [bio, setBio] = useState(
     initialProfile.nickname === '김모이지' ? '' : initialProfile.bio,
   );
-  const [activityRegion, setActivityRegion] = useState(
-    initialProfile.nickname === '김모이지' ? '' : (initialProfile.activityRegion || ''),
+  const [regionCode, setRegionCode] = useState(
+    initialProfile.nickname === '김모이지' ? '' : (initialProfile.regionCode ?? ''),
   );
   const [interests, setInterests] = useState<string[]>(
     initialProfile.nickname === '김모이지' ? [] : initialProfile.interests,
   );
 
+  const [regions, setRegions] = useState<RegionProvince[] | null>(null);
+  const [regionsError, setRegionsError] = useState<string | null>(null);
+  const [regionsReloadKey, setRegionsReloadKey] = useState(0);
+  const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'taken' | 'error'>('idle');
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRegionsError(null);
+    regionApi.list()
+      .then((result) => { if (!cancelled) setRegions(result); })
+      .catch((error) => {
+        if (!cancelled) setRegionsError(toErrorMessage(error, '지역 목록을 불러오지 못했어요.'));
+      });
+    return () => { cancelled = true; };
+  }, [regionsReloadKey]);
+
   const trimmedNickname = nickname.trim();
   const nicknameIsValid = trimmedNickname.length >= 2 && trimmedNickname.length <= 12;
-  const regionIsValid = activityRegion.trim().length >= 2;
+  const selectedRegion = regions
+    ?.flatMap((province) => province.regions.map((region) => ({ ...region, provinceName: province.provinceName })))
+    .find((region) => region.code === regionCode);
+  const regionIsValid = Boolean(selectedRegion);
   const interestsAreValid = interests.length >= 3;
+
+  const goToInterests = async () => {
+    if (!nicknameIsValid || !regionIsValid) return;
+    setNicknameStatus('checking');
+    setNicknameError(null);
+    try {
+      const { available } = await memberApi.checkNickname(trimmedNickname);
+      if (!available) {
+        setNicknameStatus('taken');
+        return;
+      }
+      setNicknameStatus('idle');
+      setStep(2);
+    } catch (error) {
+      setNicknameStatus('error');
+      setNicknameError(toErrorMessage(error, '닉네임을 확인하지 못했어요. 잠시 후 다시 시도해주세요.'));
+    }
+  };
 
   const toggleInterest = (interest: string) => {
     setInterests((current) => {
@@ -35,12 +89,28 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
     });
   };
 
-  const finish = () => {
-    if (!nicknameIsValid || !interestsAreValid) return;
+  const finish = async () => {
+    if (!nicknameIsValid || !interestsAreValid || !selectedRegion || submitting) return;
+    const trimmedBio = bio.trim();
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await memberApi.completeOnboarding({
+        nickname: trimmedNickname,
+        statusMessage: trimmedBio || undefined,
+        regionCode: selectedRegion.code,
+        categoryCodes: interests.map((interest) => interestCategoryCodes[interest]!),
+      });
+    } catch (error) {
+      setSubmitError(toErrorMessage(error, '프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.'));
+      setSubmitting(false);
+      return;
+    }
     onComplete({
       nickname: trimmedNickname,
-      bio: bio.trim() || '새로운 모임을 찾고 있어요.',
-      activityRegion: activityRegion.trim(),
+      bio: trimmedBio || '새로운 모임을 찾고 있어요.',
+      activityRegion: formatRegionName(selectedRegion.provinceName, selectedRegion.name),
+      regionCode: selectedRegion.code,
       interests,
     });
   };
@@ -93,12 +163,21 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                     minLength={2}
                     maxLength={12}
                     value={nickname}
-                    onChange={(event) => setNickname(event.target.value)}
+                    onChange={(event) => {
+                      setNickname(event.target.value);
+                      setNicknameStatus('idle');
+                    }}
                     placeholder="2~12자로 입력해주세요"
                     className="form-input"
                   />
                   {nickname.length > 0 && !nicknameIsValid && (
                     <p className="mt-2 text-xs text-red-600">닉네임은 공백을 제외하고 2자 이상 입력해주세요.</p>
+                  )}
+                  {nicknameStatus === 'taken' && (
+                    <p role="alert" className="mt-2 text-xs text-red-600">이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요.</p>
+                  )}
+                  {nicknameStatus === 'error' && nicknameError && (
+                    <p role="alert" className="mt-2 text-xs text-red-600">{nicknameError}</p>
                   )}
                 </label>
 
@@ -121,32 +200,49 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                     <MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <select
                       required
-                      value={activityRegion}
-                      onChange={(event) => setActivityRegion(event.target.value)}
-                      className="form-input appearance-none pl-11"
+                      disabled={!regions}
+                      value={regionCode}
+                      onChange={(event) => setRegionCode(event.target.value)}
+                      className="form-input appearance-none pl-11 disabled:opacity-60"
                     >
-                      <option value="">지역을 선택해주세요</option>
-                      {activityRegion && !activityRegionOptions.includes(activityRegion) && (
-                        <option value={activityRegion}>현재 설정 · {activityRegion}</option>
-                      )}
-                      {activityRegionGroups.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                      <option value="">{regions ? '지역을 선택해주세요' : '지역 목록을 불러오는 중이에요'}</option>
+                      {regions?.map((province) => (
+                        <optgroup key={province.provinceName} label={province.provinceName}>
+                          {province.regions.map((region) => (
+                            <option key={region.code} value={region.code}>{region.name}</option>
+                          ))}
                         </optgroup>
                       ))}
                     </select>
                   </span>
-                  <p className="mt-2 text-xs text-slate-400">주변 모임 추천의 기본 지역으로 사용돼요.</p>
+                  {regionsError ? (
+                    <p role="alert" className="mt-2 flex items-center gap-2 text-xs text-red-600">
+                      {regionsError}
+                      <button
+                        type="button"
+                        onClick={() => setRegionsReloadKey((key) => key + 1)}
+                        className="font-semibold underline"
+                      >
+                        다시 시도
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">주변 모임 추천의 기본 지역으로 사용돼요.</p>
+                  )}
                 </label>
               </div>
 
               <button
                 type="button"
-                disabled={!nicknameIsValid || !regionIsValid}
-                onClick={() => setStep(2)}
+                disabled={!nicknameIsValid || !regionIsValid || nicknameStatus === 'checking'}
+                onClick={() => void goToInterests()}
                 className="mt-9 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#101828] px-5 py-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
               >
-                관심사 선택하기 <ArrowRight className="h-4 w-4" />
+                {nicknameStatus === 'checking' ? (
+                  <><LoaderCircle className="h-4 w-4 animate-spin" /> 닉네임 확인 중</>
+                ) : (
+                  <>관심사 선택하기 <ArrowRight className="h-4 w-4" /></>
+                )}
               </button>
             </div>
           ) : (
@@ -189,13 +285,21 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                 <span className="font-semibold text-slate-700">{interests.length}/5</span>
               </div>
 
+              {submitError && (
+                <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-xs text-red-600">{submitError}</p>
+              )}
+
               <button
                 type="button"
-                disabled={!interestsAreValid}
-                onClick={finish}
+                disabled={!interestsAreValid || submitting}
+                onClick={() => void finish()}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
               >
-                MoEasy 시작하기 <ArrowRight className="h-4 w-4" />
+                {submitting ? (
+                  <><LoaderCircle className="h-4 w-4 animate-spin" /> 저장 중</>
+                ) : (
+                  <>MoEasy 시작하기 <ArrowRight className="h-4 w-4" /></>
+                )}
               </button>
             </div>
           )}

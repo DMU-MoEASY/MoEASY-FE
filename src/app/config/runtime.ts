@@ -1,7 +1,9 @@
 export type DataSourceMode = 'local' | 'api';
 
 const configuredMode = import.meta.env.VITE_DATA_SOURCE;
-const dataSource: DataSourceMode = configuredMode === 'api' ? 'api' : 'local';
+const dataSource: DataSourceMode = configuredMode === 'api' || (!configuredMode && import.meta.env.PROD)
+  ? 'api'
+  : 'local';
 const defaultApiBaseUrl = import.meta.env.PROD
   ? '/api/v1'
   : 'https://jeonggyul.duckdns.org/api/v1';

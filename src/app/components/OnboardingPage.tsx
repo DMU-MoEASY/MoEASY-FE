@@ -1,11 +1,27 @@
-import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, MapPin, Sparkles, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, MapPin, Sparkles, UserRound } from 'lucide-react';
+import { isApiMode } from '../config/runtime';
+import { ApiError } from '../lib/apiClient';
+import { onboardingApi, type RegionProvince } from '../services/p0Api';
 import { activityRegionGroups, activityRegionOptions, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
 
 interface OnboardingPageProps {
   initialProfile: UserProfile;
   onComplete: (profile: UserProfile) => void;
 }
+
+const interestCodes: Record<string, string> = {
+  러닝: 'RUNNING',
+  등산: 'HIKING',
+  스터디: 'STUDY',
+  독서: 'READING',
+  사진: 'PHOTOGRAPHY',
+  맛집: 'FOOD',
+  보드게임: 'BOARD_GAME',
+  여행: 'TRAVEL',
+  봉사: 'VOLUNTEERING',
+  개발: 'DEVELOPMENT',
+};
 
 export function OnboardingPage({ initialProfile, onComplete }: OnboardingPageProps) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -18,14 +34,32 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
   const [activityRegion, setActivityRegion] = useState(
     initialProfile.nickname === '김모이지' ? '' : (initialProfile.activityRegion || ''),
   );
+  const [regionCode, setRegionCode] = useState('');
+  const [apiRegionGroups, setApiRegionGroups] = useState<RegionProvince[]>([]);
   const [interests, setInterests] = useState<string[]>(
     initialProfile.nickname === '김모이지' ? [] : initialProfile.interests,
   );
+  const [isCheckingNickname, setIsCheckingNickname] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const trimmedNickname = nickname.trim();
   const nicknameIsValid = trimmedNickname.length >= 2 && trimmedNickname.length <= 12;
-  const regionIsValid = activityRegion.trim().length >= 2;
+  const regionIsValid = isApiMode ? regionCode.length === 5 : activityRegion.trim().length >= 2;
   const interestsAreValid = interests.length >= 3;
+
+  useEffect(() => {
+    if (!isApiMode) return;
+    let cancelled = false;
+    void onboardingApi.getRegions()
+      .then((groups) => {
+        if (!cancelled) setApiRegionGroups(groups);
+      })
+      .catch((requestError: unknown) => {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : '지역 목록을 불러오지 못했습니다.');
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const toggleInterest = (interest: string) => {
     setInterests((current) => {
@@ -35,14 +69,58 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
     });
   };
 
-  const finish = () => {
+  const continueToInterests = async () => {
+    if (!nicknameIsValid || !regionIsValid) return;
+    if (!isApiMode) {
+      setStep(2);
+      return;
+    }
+
+    setError('');
+    setIsCheckingNickname(true);
+    try {
+      const result = await onboardingApi.checkNickname(trimmedNickname);
+      if (!result.available) {
+        setError('이미 사용 중인 닉네임입니다. 다른 닉네임을 입력해주세요.');
+        return;
+      }
+      setStep(2);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : '닉네임을 확인하지 못했습니다.');
+    } finally {
+      setIsCheckingNickname(false);
+    }
+  };
+
+  const finish = async () => {
     if (!nicknameIsValid || !interestsAreValid) return;
-    onComplete({
+    const profile = {
       nickname: trimmedNickname,
       bio: bio.trim() || '새로운 모임을 찾고 있어요.',
       activityRegion: activityRegion.trim(),
       interests,
-    });
+    };
+
+    setError('');
+    setIsSubmitting(true);
+    try {
+      if (isApiMode) {
+        await onboardingApi.complete({
+          nickname: profile.nickname,
+          statusMessage: profile.bio,
+          regionCode,
+          categoryCodes: interests.map((interest) => interestCodes[interest]).filter((code): code is string => Boolean(code)),
+        });
+      }
+      onComplete(profile);
+    } catch (requestError) {
+      const message = requestError instanceof ApiError && requestError.fieldErrors?.length
+        ? requestError.fieldErrors.map((item) => item.message).join(' ')
+        : requestError instanceof Error ? requestError.message : '온보딩 정보를 저장하지 못했습니다.';
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -121,32 +199,51 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                     <MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <select
                       required
-                      value={activityRegion}
-                      onChange={(event) => setActivityRegion(event.target.value)}
+                      value={isApiMode ? regionCode : activityRegion}
+                      onChange={(event) => {
+                        if (!isApiMode) {
+                          setActivityRegion(event.target.value);
+                          return;
+                        }
+                        const nextCode = event.target.value;
+                        const province = apiRegionGroups.find((group) => group.regions.some((region) => region.code === nextCode));
+                        const region = province?.regions.find((item) => item.code === nextCode);
+                        setRegionCode(nextCode);
+                        setActivityRegion(province && region ? `${province.provinceName} ${region.name}` : '');
+                      }}
+                      disabled={isApiMode && apiRegionGroups.length === 0}
                       className="form-input appearance-none pl-11"
                     >
-                      <option value="">지역을 선택해주세요</option>
-                      {activityRegion && !activityRegionOptions.includes(activityRegion) && (
-                        <option value={activityRegion}>현재 설정 · {activityRegion}</option>
-                      )}
-                      {activityRegionGroups.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                      <option value="">{isApiMode && apiRegionGroups.length === 0 ? '지역 목록 불러오는 중...' : '지역을 선택해주세요'}</option>
+                      {isApiMode ? apiRegionGroups.map((group) => (
+                        <optgroup key={group.provinceName} label={group.provinceName}>
+                          {group.regions.map((region) => <option key={region.code} value={region.code}>{region.name}</option>)}
                         </optgroup>
-                      ))}
+                      )) : <>
+                        {activityRegion && !activityRegionOptions.includes(activityRegion) && (
+                          <option value={activityRegion}>현재 설정 · {activityRegion}</option>
+                        )}
+                        {activityRegionGroups.map((group) => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.regions.map((region) => <option key={region} value={region}>{region}</option>)}
+                          </optgroup>
+                        ))}
+                      </>}
                     </select>
                   </span>
                   <p className="mt-2 text-xs text-slate-400">주변 모임 추천의 기본 지역으로 사용돼요.</p>
                 </label>
               </div>
 
+              {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+
               <button
                 type="button"
-                disabled={!nicknameIsValid || !regionIsValid}
-                onClick={() => setStep(2)}
+                disabled={!nicknameIsValid || !regionIsValid || isCheckingNickname}
+                onClick={() => void continueToInterests()}
                 className="mt-9 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#101828] px-5 py-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
               >
-                관심사 선택하기 <ArrowRight className="h-4 w-4" />
+                {isCheckingNickname ? <><LoaderCircle className="h-4 w-4 animate-spin" /> 닉네임 확인 중</> : <>관심사 선택하기 <ArrowRight className="h-4 w-4" /></>}
               </button>
             </div>
           ) : (
@@ -189,13 +286,15 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                 <span className="font-semibold text-slate-700">{interests.length}/5</span>
               </div>
 
+              {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+
               <button
                 type="button"
-                disabled={!interestsAreValid}
-                onClick={finish}
+                disabled={!interestsAreValid || isSubmitting}
+                onClick={() => void finish()}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
               >
-                MoEasy 시작하기 <ArrowRight className="h-4 w-4" />
+                {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> 저장 중</> : <>MoEasy 시작하기 <ArrowRight className="h-4 w-4" /></>}
               </button>
             </div>
           )}

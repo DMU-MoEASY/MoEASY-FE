@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
+import { isApiMode } from '../config/runtime';
+import { onboardingApi, type RegionProvince } from '../services/p0Api';
 import {
   INITIAL_DUES_STATE,
   meetupFinanceKey,
@@ -77,24 +79,74 @@ export function RequestsExperience({ onBack, name }: { onBack: () => void; name:
   </PageFrame>;
 }
 
-export type CreateMeetupValues = { name: string; description: string; category: string; region: string; maxMembers: number };
+export type CreateMeetupValues = {
+  name: string;
+  description: string;
+  category: string;
+  categoryId: number;
+  region: string;
+  regionCode: string;
+  placeName: string;
+  address: string;
+  maxMembers: number;
+  joinPolicy: 'OPEN' | 'APPROVAL';
+};
 
-export function CreateMeetupExperience({ onBack, onCreate }: { onBack: () => void; onCreate: (values: CreateMeetupValues) => void }) {
-  const [category,setCategory]=useState('운동');
+const groupCategories = [
+  { id: 1, label: '러닝' },
+  { id: 2, label: '등산' },
+  { id: 3, label: '스터디' },
+  { id: 4, label: '독서' },
+  { id: 5, label: '사진' },
+  { id: 6, label: '맛집' },
+  { id: 7, label: '보드게임' },
+  { id: 8, label: '여행' },
+  { id: 9, label: '봉사' },
+  { id: 10, label: '개발' },
+];
+
+export function CreateMeetupExperience({ onBack, onCreate }: { onBack: () => void; onCreate: (values: CreateMeetupValues) => void | Promise<void> }) {
+  const [categoryId,setCategoryId]=useState(1);
   const [name,setName]=useState('');
   const [description,setDescription]=useState('');
   const [region,setRegion]=useState('');
+  const [regionCode,setRegionCode]=useState('');
+  const [regionGroups,setRegionGroups]=useState<RegionProvince[]>([]);
+  const [placeName,setPlaceName]=useState('');
+  const [address,setAddress]=useState('');
   const [maxMembers,setMaxMembers]=useState('20');
+  const [joinPolicy,setJoinPolicy]=useState<'OPEN' | 'APPROVAL'>('APPROVAL');
+  const [isSubmitting,setIsSubmitting]=useState(false);
   const [error,setError]=useState('');
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const category = groupCategories.find((item) => item.id === categoryId)?.label ?? '러닝';
+
+  useEffect(() => {
+    if (!isApiMode) return;
+    let cancelled = false;
+    void onboardingApi.getRegions()
+      .then((groups) => { if (!cancelled) setRegionGroups(groups); })
+      .catch((requestError: unknown) => { if (!cancelled) setError(requestError instanceof Error ? requestError.message : '지역 목록을 불러오지 못했습니다.'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const capacity = Number(maxMembers);
-    if (!name.trim() || !description.trim() || !region.trim()) { setError('모임 이름, 소개, 활동 지역을 모두 입력해주세요.'); return; }
+    if (!name.trim() || !description.trim() || !region.trim() || !placeName.trim() || !address.trim()) { setError('모임 이름, 소개, 지역, 대표 장소와 주소를 모두 입력해주세요.'); return; }
+    if (isApiMode && !regionCode) { setError('백엔드 지역 목록에서 활동 지역을 선택해주세요.'); return; }
     if (!Number.isInteger(capacity) || capacity < 2 || capacity > 500) { setError('최대 인원은 2명에서 500명 사이로 입력해주세요.'); return; }
-    onCreate({ name: name.trim(), description: description.trim(), category, region: region.trim(), maxMembers: capacity });
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await onCreate({ name: name.trim(), description: description.trim(), category, categoryId, region: region.trim(), regionCode: regionCode || region.trim(), placeName: placeName.trim(), address: address.trim(), maxMembers: capacity, joinPolicy });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : '모임을 만들지 못했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return <PageFrame eyebrow="Create a circle" title="새로운 모임 만들기" description="어떤 사람들과 무엇을 하고 싶은지 알려주세요. 나머지는 MoEasy가 도와드릴게요." onBack={onBack}>
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]"><form onSubmit={handleSubmit} className="space-y-6 rounded-[26px] bg-card p-5 ring-1 ring-black/[0.06] sm:p-8"><FormField label="모임 이름"><input required value={name} onChange={event=>setName(event.target.value)} placeholder="예: 퇴근 후 한강 러닝" className="form-input"/></FormField><FormField label="모임 소개"><textarea required value={description} onChange={event=>setDescription(event.target.value)} rows={5} placeholder="모임의 분위기와 활동을 소개해주세요" className="form-input resize-none"/></FormField><FormField label="카테고리"><div className="flex flex-wrap gap-2">{['운동','스터디','문화','음식','취미','게임'].map(item=><button type="button" key={item} onClick={()=>setCategory(item)} className={`rounded-full px-4 py-2 text-sm ${category===item?'bg-[#101828] text-white':'bg-secondary text-muted-foreground'}`}>{item}</button>)}</div></FormField><div className="grid gap-4 sm:grid-cols-2"><FormField label="활동 지역"><div className="relative"><MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input required value={region} onChange={event=>setRegion(event.target.value)} placeholder="서울 강남구" className="form-input pl-11"/></div></FormField><FormField label="최대 인원"><div className="relative"><Users className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input required type="number" min="2" max="500" value={maxMembers} onChange={event=>setMaxMembers(event.target.value)} className="form-input pl-11"/></div></FormField></div>{error&&<p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}<button type="submit" className="w-full rounded-xl bg-primary py-4 text-sm font-semibold text-white">모임 만들기</button></form>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]"><form onSubmit={(event) => void handleSubmit(event)} className="space-y-6 rounded-[26px] bg-card p-5 ring-1 ring-black/[0.06] sm:p-8"><FormField label="모임 이름"><input required value={name} onChange={event=>setName(event.target.value)} placeholder="예: 퇴근 후 한강 러닝" className="form-input"/></FormField><FormField label="모임 소개"><textarea required value={description} onChange={event=>setDescription(event.target.value)} rows={5} placeholder="모임의 분위기와 활동을 소개해주세요" className="form-input resize-none"/></FormField><FormField label="카테고리"><div className="flex flex-wrap gap-2">{groupCategories.map(item=><button type="button" key={item.id} onClick={()=>setCategoryId(item.id)} className={`rounded-full px-4 py-2 text-sm ${categoryId===item.id?'bg-[#101828] text-white':'bg-secondary text-muted-foreground'}`}>{item.label}</button>)}</div></FormField><div className="grid gap-4 sm:grid-cols-2"><FormField label="활동 지역"><div className="relative"><MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/>{isApiMode ? <select required value={regionCode} disabled={regionGroups.length === 0} onChange={event=>{ const code=event.target.value; const province=regionGroups.find(group=>group.regions.some(item=>item.code===code)); const detail=province?.regions.find(item=>item.code===code); setRegionCode(code); setRegion(province&&detail?`${province.provinceName} ${detail.name}`:''); }} className="form-input appearance-none pl-11"><option value="">{regionGroups.length===0?'지역 목록 불러오는 중...':'지역을 선택해주세요'}</option>{regionGroups.map(group=><optgroup key={group.provinceName} label={group.provinceName}>{group.regions.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</optgroup>)}</select> : <input required value={region} onChange={event=>setRegion(event.target.value)} placeholder="서울 강남구" className="form-input pl-11"/>}</div></FormField><FormField label="최대 인원"><div className="relative"><Users className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input required type="number" min="2" max="500" value={maxMembers} onChange={event=>setMaxMembers(event.target.value)} className="form-input pl-11"/></div></FormField></div><div className="grid gap-4 sm:grid-cols-2"><FormField label="대표 장소"><input required value={placeName} onChange={event=>setPlaceName(event.target.value)} placeholder="예: 반포 한강공원" className="form-input"/></FormField><FormField label="상세 주소"><input required value={address} onChange={event=>setAddress(event.target.value)} placeholder="예: 서울 서초구 신반포로11길 40" className="form-input"/></FormField></div><FormField label="가입 방식"><div className="grid grid-cols-2 gap-2">{([['APPROVAL','승인 후 가입'],['OPEN','바로 가입']] as const).map(([value,label])=><button type="button" key={value} onClick={()=>setJoinPolicy(value)} className={`rounded-xl px-4 py-3 text-sm font-medium ${joinPolicy===value?'bg-[#101828] text-white':'bg-secondary text-muted-foreground'}`}>{label}</button>)}</div></FormField>{error&&<p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}<button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary py-4 text-sm font-semibold text-white disabled:opacity-50">{isSubmitting?'모임 생성 중...':'모임 만들기'}</button></form>
       <aside className="space-y-4"><div className="overflow-hidden rounded-[24px] bg-[#101828] text-white"><div className="relative h-44"><img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=800&q=85" alt="모임 미리보기" className="h-full w-full object-cover opacity-70"/><div className="absolute inset-0 bg-gradient-to-t from-[#101828] to-transparent"/></div><div className="p-5"><span className="text-xs text-[#8FAAFF]">PREVIEW</span><h3 className="mt-2 text-xl font-semibold">{name.trim() || `새로운 ${category} 모임`}</h3><p className="mt-2 line-clamp-2 text-sm text-slate-400">{description.trim() || '모임 정보가 여기에 표시됩니다.'}</p>{region.trim()&&<p className="mt-3 flex items-center gap-1 text-xs text-slate-300"><MapPin className="h-3 w-3"/>{region} · 최대 {maxMembers || 0}명</p>}</div></div><div className="rounded-[22px] bg-[#E8EEFF] p-5"><Sparkles className="h-5 w-5 text-primary"/><h3 className="mt-4 font-semibold">좋은 소개의 기준</h3><p className="mt-2 text-sm leading-6 text-slate-600">누구를 위한 모임인지, 언제 얼마나 자주 만나는지 적으면 가입률이 높아져요.</p></div></aside>
     </div>
   </PageFrame>;

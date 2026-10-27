@@ -56,7 +56,8 @@ import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
 import { OnboardingPage } from './components/OnboardingPage';
 import { completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
-import { authApi, userApi, type UserSummary } from './services/p0Api';
+import { authApi, groupApi } from './services/p0Api';
+import { isApiMode } from './config/runtime';
 import {
   AUTH_SESSION_KEY,
   createSocialAuthSession,
@@ -361,7 +362,6 @@ export default function App() {
     USER_PROFILES_BY_MEMBER_KEY,
     {},
   );
-  const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
   const isLoggedIn = authSession !== null;
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [activeTab, setActiveTab] = useState(pathTabs[pathname] ?? 'home');
@@ -402,18 +402,6 @@ export default function App() {
   useEffect(() => {
     removeLegacyLoginState();
   }, []);
-
-  useEffect(() => {
-    if (!authSession) {
-      setCurrentUser(null);
-      return;
-    }
-    let cancelled = false;
-    void userApi.getMe()
-      .then(user => { if (!cancelled) setCurrentUser(user); })
-      .catch(() => { if (!cancelled) setCurrentUser(null); });
-    return () => { cancelled = true; };
-  }, [authSession]);
 
   useEffect(() => {
     if (!authSession) return;
@@ -512,8 +500,7 @@ export default function App() {
     }
   };
 
-  const currentUserName = currentUser?.nickname?.trim()
-    || userProfile.nickname?.trim()
+  const currentUserName = userProfile.nickname?.trim()
     || `회원 ${authSession?.memberId ?? ''}`.trim();
 
   const openMeetup = (meetup: Meetup) => {
@@ -626,9 +613,21 @@ export default function App() {
   }
 
   if (showCreateMeetup) {
-    return <CreateMeetupExperience onBack={() => setShowCreateMeetup(false)} onCreate={(values) => {
+    return <CreateMeetupExperience onBack={() => setShowCreateMeetup(false)} onCreate={async (values) => {
+      const created = isApiMode
+        ? await groupApi.create({
+          name: values.name,
+          description: values.description,
+          categoryId: values.categoryId,
+          regionCode: values.regionCode,
+          placeName: values.placeName,
+          address: values.address,
+          maxMembers: values.maxMembers,
+          joinPolicy: values.joinPolicy,
+        })
+        : { groupId: Date.now() };
       const createdMeetup = {
-        id: Date.now(),
+        id: created.groupId,
         name: values.name,
         region: values.region,
         description: values.description,
@@ -1367,7 +1366,7 @@ export default function App() {
           currentPage={activeTab}
           onNavigate={navigateToTab}
           userName={currentUserName}
-          profileImageUrl={currentUser?.profileImageUrl}
+          profileImageUrl={undefined}
           memberId={authSession.memberId}
           onLogout={() => void logout()}
         />
@@ -1380,7 +1379,7 @@ export default function App() {
           onNotificationClick={() => setShowNotifications(true)}
           onDMClick={() => setShowDMList(true)}
           userName={currentUserName}
-          profileImageUrl={currentUser?.profileImageUrl}
+          profileImageUrl={undefined}
           memberId={authSession.memberId}
           onProfileClick={() => navigateToTab('profile')}
           onLogout={() => void logout()}
@@ -1754,7 +1753,7 @@ export default function App() {
           {activeTab === 'profile' && (
             <ProfileExperience
               profile={userProfile}
-              profileImageUrl={currentUser?.profileImageUrl}
+              profileImageUrl={undefined}
               onProfileChange={persistProfileForCurrentMember}
               meetups={myMeetups}
               onSelectMeetup={(item) => {

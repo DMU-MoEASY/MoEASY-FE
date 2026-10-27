@@ -1,63 +1,50 @@
 import { apiRequest, clearCsrfToken, ensureCsrfToken } from '../lib/apiClient';
 
-export type Id = string;
-export type RsvpStatus = 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED';
+export type RegionOption = {
+  code: string;
+  name: string;
+};
 
-export type UserSummary = {
-  id: Id;
+export type RegionProvince = {
+  provinceName: string;
+  regions: RegionOption[];
+};
+
+export type CompleteOnboardingInput = {
   nickname: string;
-  profileImageUrl?: string | null;
-};
-
-export type MeetupSummary = {
-  id: Id;
-  name: string;
-  description: string;
-  category: string;
-  region: { code?: string; name: string };
-  memberCount: number;
-  imageUrl?: string | null;
-  myRole?: string | null;
-};
-
-export type MeetupSchedule = {
-  id: Id;
-  clubId: Id;
-  title: string;
-  startsAt: string;
-  endsAt?: string | null;
-  place: {
-    name: string;
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-  };
-  status: 'DRAFT' | 'OPEN' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
-  myRsvp: RsvpStatus;
-  attendingCount: number;
-};
-
-export type PageResult<T> = {
-  items: T[];
-  page: { nextCursor: string | null; hasNext: boolean; size: number };
-};
-
-export type CreateMeetupInput = {
-  name: string;
-  description: string;
-  categoryId: string;
+  statusMessage?: string;
   regionCode: string;
+  categoryCodes: string[];
+};
+
+export type GroupDetail = {
+  groupId: number;
+  categoryId: number;
+  name: string;
+  description: string;
+  regionCode: string;
+  placeName: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
   maxMembers: number;
   joinPolicy: 'OPEN' | 'APPROVAL';
+  status: 'ACTIVE' | 'CLOSED';
+  coverImageUrl: string | null;
 };
 
-export type CreateScheduleInput = {
-  title: string;
-  startsAt: string;
-  endsAt?: string;
-  place: MeetupSchedule['place'];
-  capacity?: number;
-  notice?: string;
+export type CreateGroupInput = {
+  name: string;
+  description: string;
+  categoryId: number;
+  regionCode: string;
+  placeName: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  maxMembers: number;
+  joinPolicy: 'OPEN' | 'APPROVAL';
+  coverImageKey?: string;
 };
 
 export type SocialProvider = 'KAKAO' | 'GOOGLE';
@@ -90,50 +77,26 @@ export const authApi = {
   },
 };
 
-export const userApi = {
-  getMe: () => apiRequest<UserSummary>('/users/me'),
-  getMyMeetups: () => apiRequest<PageResult<MeetupSummary>>('/users/me/clubs'),
-};
-
-export const meetupApi = {
-  search: (params: { q?: string; category?: string; regionCode?: string; cursor?: string; size?: number } = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') query.set(key, String(value));
-    });
-    const suffix = query.size ? `?${query.toString()}` : '';
-    return apiRequest<PageResult<MeetupSummary>>(`/clubs${suffix}`);
+// These endpoints mirror the contracts currently merged into MoEASY-BE/develop.
+export const onboardingApi = {
+  getRegions: () => apiRequest<RegionProvince[]>('/regions'),
+  checkNickname: (nickname: string) => {
+    const query = new URLSearchParams({ nickname });
+    return apiRequest<{ available: boolean }>(`/members/nicknames/availability?${query.toString()}`);
   },
-  get: (clubId: Id) => apiRequest<MeetupSummary>(`/clubs/${clubId}`),
-  create: (input: CreateMeetupInput) => apiRequest<MeetupSummary>('/clubs', { method: 'POST', body: input }),
+  complete: (input: CompleteOnboardingInput) => apiRequest<{
+    memberId: number;
+    onboardingCompleted: boolean;
+  }>('/members/me/onboarding', { method: 'POST', body: input }),
 };
 
-export const scheduleApi = {
-  list: (clubId: Id) => apiRequest<PageResult<MeetupSchedule>>(`/clubs/${clubId}/schedules`),
-  create: (clubId: Id, input: CreateScheduleInput) => apiRequest<MeetupSchedule>(
-    `/clubs/${clubId}/schedules`,
-    { method: 'POST', body: input },
+export const groupApi = {
+  create: (input: CreateGroupInput) => apiRequest<{ groupId: number }>('/groups', { method: 'POST', body: input }),
+  get: (groupId: number | string) => apiRequest<GroupDetail>(`/groups/${groupId}`),
+  update: (groupId: number | string, input: Partial<Omit<CreateGroupInput, 'maxMembers' | 'joinPolicy'>>) => (
+    apiRequest<GroupDetail>(`/groups/${groupId}`, { method: 'PATCH', body: input })
   ),
-  update: (scheduleId: Id, input: Partial<CreateScheduleInput>) => apiRequest<MeetupSchedule>(
-    `/schedules/${scheduleId}`,
-    { method: 'PATCH', body: input },
+  close: (groupId: number | string, input: { reason: string; confirmationText: string; archiveContent: boolean }) => (
+    apiRequest<void>(`/groups/${groupId}`, { method: 'DELETE', body: input })
   ),
-  remove: (scheduleId: Id) => apiRequest<void>(`/schedules/${scheduleId}`, { method: 'DELETE' }),
-  updateRsvp: (scheduleId: Id, status: RsvpStatus) => apiRequest<{
-    scheduleId: Id;
-    myRsvp: RsvpStatus;
-    attendingCount: number;
-    capacity?: number;
-  }>(`/schedules/${scheduleId}/rsvp`, { method: 'PUT', body: { status } }),
-};
-
-export const boardApi = {
-  createPost: (clubId: Id, content: string, imageFileIds: Id[] = []) => apiRequest<{
-    id: Id;
-    content: string;
-    author: UserSummary;
-    likeCount: number;
-    commentCount: number;
-    createdAt: string;
-  }>(`/clubs/${clubId}/posts`, { method: 'POST', body: { content, imageFileIds } }),
 };

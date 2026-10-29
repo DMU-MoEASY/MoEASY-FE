@@ -1,10 +1,13 @@
+import { RemoteJoinRequests } from './RemoteJoinRequests';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
+import { SettlementExperience } from './SettlementExperience';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
+import { persistenceStore } from '../lib/persistence';
 import { isApiMode } from '../config/runtime';
 import { onboardingApi, type RegionProvince } from '../services/p0Api';
 import {
@@ -49,18 +52,12 @@ export function NotificationsExperience({ onBack }: { onBack: () => void }) {
   </PageFrame>;
 }
 
-export function MessagesExperience({ onBack, onChat }: { onBack: () => void; onChat: () => void }) {
-  const rooms = [
-    ['강남 러닝 크루','오늘 모임 장소가 변경되었습니다','10분 전','3'],
-    ['판교 개발자 스터디','다음 주 스터디 자료 공유드립니다','1시간 전',''],
-    ['북한산 등산 클럽','다들 무사히 하산하셨나요?','3시간 전','1'],
-    ['홍대 독서 모임','이번 달 책 추천 받습니다','5시간 전',''],
-  ];
-  return <PageFrame eyebrow="메시지" title="모임 대화" description="참여 중인 모임의 이야기를 이어가세요." onBack={onBack} action={<button className="rounded-full bg-primary p-2.5 text-white"><Plus className="h-5 w-5" /></button>}>
-    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <section className="overflow-hidden rounded-2xl border border-border bg-card"><div className="p-4"><label className="flex items-center gap-3 rounded-xl bg-secondary px-4"><Search className="h-4 w-4 text-muted-foreground"/><input className="w-full bg-transparent py-3 text-sm outline-none" placeholder="대화 검색"/></label></div>{rooms.map(([name,message,time,count]) => <button key={name} onClick={onChat} className="flex w-full items-center gap-3 border-t border-border p-4 text-left hover:bg-secondary/60"><UserAvatar name={name} className="h-11 w-11" textClassName="text-[10px]"/><div className="min-w-0 flex-1"><div className="flex justify-between"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="text-[11px] text-muted-foreground">{time}</span></div><p className="mt-1 truncate text-sm text-muted-foreground">{message}</p></div>{count && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-white">{count}</span>}</button>)}</section>
-      <section className="hidden min-h-[520px] items-center justify-center rounded-2xl border border-border bg-slate-50 text-center lg:flex"><div><MessageCircle className="mx-auto h-7 w-7 text-slate-400"/><h2 className="mt-4 text-lg font-semibold">대화를 선택하세요</h2><p className="mt-2 text-sm text-muted-foreground">모임에서 오간 이야기를 확인할 수 있어요.</p></div></section>
-    </div>
+export function MessagesExperience({ onBack, onChat, meetups }: { onBack: () => void; onChat: (id: number) => void; meetups: {id:number;name:string}[] }) {
+  const [query, setQuery] = useState('');
+  const rooms = meetups.filter(item => item.name.toLowerCase().includes(query.trim().toLowerCase()));
+  return <PageFrame eyebrow="메시지" title="모임 대화" description="참여 중인 모임을 선택해 대화를 이어가세요." onBack={onBack}>
+    <input aria-label="대화방 검색" placeholder="모임 이름으로 검색" value={query} onChange={e => setQuery(e.target.value)} className="form-input mb-4"/>
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">{rooms.map(room => <button key={room.id} onClick={() => onChat(room.id)} className="flex w-full items-center gap-3 border-b border-border p-5 text-left hover:bg-secondary"><UserAvatar name={room.name} className="h-10 w-10"/><span>{room.name}</span><MessageCircle className="ml-auto h-5 w-5"/></button>)}{rooms.length === 0 && <p className="p-8 text-center text-muted-foreground">{query ? '검색한 모임이 없습니다.' : '참여 중인 모임이 없습니다.'}</p>}</div>
   </PageFrame>;
 }
 
@@ -71,7 +68,11 @@ export function GalleryExperience({ onBack, name }: { onBack: () => void; name: 
   </PageFrame>;
 }
 
-export function RequestsExperience({ onBack, name }: { onBack: () => void; name: string }) {
+export function RequestsExperience(props: { onBack: () => void; name: string; meetupId?: string | number }) {
+  return isApiMode && props.meetupId !== undefined ? <RemoteJoinRequests {...props} meetupId={props.meetupId}/> : <LocalRequestsExperience {...props}/>;
+}
+
+function LocalRequestsExperience({ onBack, name }: { onBack: () => void; name: string }) {
   const [handled, setHandled] = useState<number[]>([]);
   const people = [['민지','러닝을 이제 막 시작했어요. 꾸준히 함께 달리고 싶습니다.','서울 강남구','MJ'],['도윤','10km 완주를 목표로 하고 있습니다!','서울 서초구','DY'],['서연','퇴근 후 건강한 취미를 만들고 싶어요.','서울 송파구','SY']];
   return <PageFrame eyebrow="운영진 도구" title="가입 신청 관리" description={`${name}에 함께하고 싶은 새로운 멤버들을 확인하세요.`} onBack={onBack}>
@@ -165,6 +166,7 @@ function formatDuesDate(value?: string) {
 }
 
 export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: { meetupId: string | number; meetupName: string; onBack: () => void; onReceipt: () => void }) {
+  const [showSettlements, setShowSettlements] = useState(false);
   const [tab, setTab] = useState<'납부 현황' | '거래 내역'>('납부 현황');
   const [dues, setDues] = usePersistentState<DuesManagementState>(meetupFinanceKey(meetupId), INITIAL_DUES_STATE);
   const [isEditing, setIsEditing] = useState(false);
@@ -244,7 +246,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
     }));
     setIsReminderOpen(false);
     setSelectedMemberIds([]);
-    setNotice(`${targetIds.length}명의 독촉 문자 발송 기록을 저장했습니다.`);
+    setNotice(`${targetIds.length}명의 미납 안내 기록을 저장했습니다. 실제 문자는 발송되지 않습니다.`);
   };
 
   const toggleLinkedSettlement = (record: SettlementRecord) => {
@@ -268,7 +270,8 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
     setNotice(completed ? '개별 송금 요청을 완료 처리했습니다.' : '개별 송금 요청을 대기 상태로 되돌렸습니다.');
   };
 
-  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={`${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={onReceipt} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>영수증 등록</button>}>
+  if (showSettlements) return <SettlementExperience meetupId={meetupId} meetupName={meetupName} onBack={() => { setDues(persistenceStore.read<DuesManagementState>(meetupFinanceKey(meetupId)) ?? INITIAL_DUES_STATE); setShowSettlements(false); }} />;
+  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={`${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-2xl border border-border bg-card p-6 sm:col-span-2"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">이번 회비 모금액</p><strong className="mt-2 block text-3xl tracking-tight">{collectedAmount.toLocaleString('ko-KR')}원</strong></div><span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">목표 {expectedAmount.toLocaleString('ko-KR')}원</span></div><div className="mt-7 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>{dues.title}</span><b className="text-foreground">{progress}% 달성</b></div></div>
       <div className="rounded-2xl border border-border bg-card p-6"><CreditCard className="h-5 w-5 text-slate-500"/><strong className="mt-8 block text-2xl">{paidMembers.length} / {dues.members.length}</strong><p className="mt-1 text-sm text-muted-foreground">납부 완료</p></div>

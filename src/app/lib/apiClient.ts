@@ -56,6 +56,15 @@ let csrfToken: string | null = null;
 let csrfHeaderName = 'X-XSRF-TOKEN';
 let csrfRequest: Promise<string> | null = null;
 
+async function fetchResponse(url:string, options:RequestInit) {
+  try { return await fetch(url, options); }
+  catch(error) {
+    options.signal?.throwIfAborted();
+    if(error instanceof TypeError) throw new ApiError(0,'NETWORK_ERROR','서버에 연결하지 못했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
+    throw error;
+  }
+}
+
 async function parseBody(response: Response) {
   if (response.status === 204) return undefined;
   const contentType = response.headers.get('content-type') ?? '';
@@ -94,7 +103,7 @@ function isStateChanging(method?: string) {
 }
 
 async function fetchCsrfToken() {
-  const response = await fetch(`${runtimeConfig.apiBaseUrl}/auth/csrf`, {
+  const response = await fetchResponse(`${runtimeConfig.apiBaseUrl}/auth/csrf`, {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });
@@ -133,6 +142,7 @@ async function requestInternal<T>(
   options: RequestOptions,
   retry: RetryOptions,
 ): Promise<T> {
+  options.signal?.throwIfAborted();
   const { body: requestBody, ...requestOptions } = options;
   const headers = new Headers(requestOptions.headers);
   headers.set('Accept', 'application/json');
@@ -144,6 +154,7 @@ async function requestInternal<T>(
 
   if (isStateChanging(requestOptions.method) && path !== '/auth/csrf') {
     const token = await ensureCsrfToken();
+    options.signal?.throwIfAborted();
     headers.set(csrfHeaderName, token);
   }
 
@@ -156,8 +167,9 @@ async function requestInternal<T>(
     requestInit.body = requestBody instanceof FormData ? requestBody : JSON.stringify(requestBody);
   }
 
-  const response = await fetch(`${runtimeConfig.apiBaseUrl}${path}`, requestInit);
+  const response = await fetchResponse(`${runtimeConfig.apiBaseUrl}${path}`, requestInit);
   const body = await parseBody(response);
+  options.signal?.throwIfAborted();
 
   if (!response.ok) {
     const error = toApiError(response, body);

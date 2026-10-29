@@ -1,3 +1,4 @@
+import { record, text, validResponse } from './apiResponseValidation';
 import { apiRequest, clearCsrfToken, ensureCsrfToken } from '../lib/apiClient';
 
 export type RegionOption = {
@@ -29,7 +30,7 @@ export type GroupDetail = {
   longitude: number | null;
   maxMembers: number;
   joinPolicy: 'OPEN' | 'APPROVAL';
-  status: 'ACTIVE' | 'CLOSED';
+  status: 'ACTIVE' | 'ARCHIVED' | 'CLOSED';
   coverImageUrl: string | null;
 };
 
@@ -92,7 +93,7 @@ export const onboardingApi = {
 
 export const groupApi = {
   create: (input: CreateGroupInput) => apiRequest<{ groupId: number }>('/groups', { method: 'POST', body: input }),
-  get: (groupId: number | string) => apiRequest<GroupDetail>(`/groups/${groupId}`),
+  get: (groupId: number | string) => apiRequest<GroupDetail>(`/groups/${groupId}`).then(value=>validResponse<GroupDetail>(value,v=>record(v)&&Number.isSafeInteger(v.groupId)&&text(v.name)&&text(v.description)&&text(v.placeName)&&text(v.address)&&['ACTIVE','ARCHIVED','CLOSED'].includes(String(v.status))&&(v.coverImageUrl===null||text(v.coverImageUrl)), '모임 상세')),
   update: (groupId: number | string, input: Partial<Omit<CreateGroupInput, 'maxMembers' | 'joinPolicy'>>) => (
     apiRequest<GroupDetail>(`/groups/${groupId}`, { method: 'PATCH', body: input })
   ),

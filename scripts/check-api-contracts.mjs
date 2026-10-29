@@ -1,0 +1,43 @@
+// Offline request/response checks against the deployed OpenAPI contract.
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+const bundled = await build({stdin:{contents:"export {groupApi} from './src/app/services/p0Api'; export {apiRequest} from './src/app/lib/apiClient'; export {settlementApi} from './src/app/services/settlementApi'; export {joinRequestApi} from './src/app/services/joinRequestApi';",resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'test-runtime',setup(builder){builder.onLoad({filter:/config\/runtime\.ts$/},()=>({contents:"export const runtimeConfig = {apiBaseUrl:'https://contract.test/api/v1'};",loader:'js'}));}}]});
+const {settlementApi,joinRequestApi,apiRequest,groupApi}=await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`);
+const calls=[];let result={};let status=200;
+globalThis.fetch=async(url,init={})=>{calls.push({url,init});return new Response(JSON.stringify({result:String(url).endsWith('/auth/csrf')?{token:'test-csrf',headerName:'X-XSRF-TOKEN'}:result,code:status===403?'DENIED':'OK',message:'서버 응답'}),{status,headers:{'content-type':'application/json'}});};
+result={items:[],page:1,size:20,totalElements:0,totalPages:0,hasNext:false};
+assert.deepEqual(await settlementApi.list(7,1,'CANCELLED'),result);
+assert.match(calls.at(-1).url,/groups\/7\/settlements\?page=1&size=20&status=CANCELLED$/);
+assert.equal(calls.at(-1).init.credentials,'include');
+result={settlementId:31,groupId:7,title:'QA',status:'OPEN',splitMode:'EQUAL',totalAmount:3334,targetCount:1,dueAt:null,createdAt:'2026-10-29T12:00:00',description:null,createdBy:{groupMemberId:11,nickname:'QA'},items:[{settlementItemId:101,groupMemberId:11,nickname:'QA',amount:3334,status:'PAID'}]};
+assert.equal((await settlementApi.detail(7,31)).items[0].status,'PAID');
+assert.match(calls.at(-1).url,/groups\/7\/settlements\/31$/);
+await settlementApi.preview(7,{splitMode:'EQUAL',totalAmount:10000,groupMemberIds:[11,12,13]});
+assert.equal(calls.at(-1).init.headers.get('X-XSRF-TOKEN'),'test-csrf');
+assert.deepEqual(JSON.parse(calls.at(-1).init.body),{splitMode:'EQUAL',totalAmount:10000,groupMemberIds:[11,12,13]});
+await settlementApi.create(7,{title:'식사',totalAmount:10000,splitMode:'CUSTOM',memberAmounts:[{groupMemberId:11,amount:10000}]});
+assert.ok(!('groupMemberIds' in JSON.parse(calls.at(-1).init.body)));
+result={items:[],page:0,size:20,hasNext:false};assert.deepEqual(await joinRequestApi.list(7),result);
+await joinRequestApi.approve(7,9);assert.match(calls.at(-1).url,/join-requests\/9\/approve$/);assert.equal(calls.at(-1).init.method,'POST');
+await joinRequestApi.reject(7,10,'정원 초과');assert.deepEqual(JSON.parse(calls.at(-1).init.body),{rejectionReason:'정원 초과'});
+await joinRequestApi.reject(7,10);assert.deepEqual(JSON.parse(calls.at(-1).init.body),{});
+status=403;await assert.rejects(()=>settlementApi.list(7),error=>error.status===403&&error.code==='DENIED');
+status=200;result={unexpected:true};
+await assert.rejects(()=>joinRequestApi.list(7),error=>error.code==='INVALID_API_RESPONSE');
+await assert.rejects(()=>settlementApi.list(7),error=>error.code==='INVALID_API_RESPONSE');
+result=null;await assert.rejects(()=>groupApi.get(7),error=>error.code==='INVALID_API_RESPONSE');
+
+const cancelled = new AbortController();
+const cancelledCalls=[];
+globalThis.fetch=async(url)=>{cancelledCalls.push(String(url));cancelled.abort();return new Response(JSON.stringify({code:'AUTH401_1',message:'인증 필요',result:null}),{status:401,headers:{'content-type':'application/json'}});};
+await assert.rejects(()=>apiRequest('/groups/7/settlements',{signal:cancelled.signal}));
+assert.equal(cancelledCalls.length,1,'취소된 요청에서 토큰 재발급을 시도하면 안 됩니다.');
+
+let authAttempts=0;
+globalThis.fetch=async(url,init={})=>{const path=new URL(url).pathname;if(path.endsWith('/auth/reissue'))return new Response(null,{status:204});authAttempts++;return new Response(JSON.stringify(authAttempts===1?{code:'AUTH401_1',result:null}:{data:{ok:true}}),{status:authAttempts===1?401:200,headers:{'content-type':'application/json'}});};
+assert.deepEqual(await apiRequest('/auth-check'),{ok:true});assert.equal(authAttempts,2);
+authAttempts=0;globalThis.fetch=async()=>{authAttempts++;return new Response(JSON.stringify({code:'AUTH401_1',message:'인증 필요',result:null}),{status:401,headers:{'content-type':'application/json'}});};
+await assert.rejects(()=>apiRequest('/auth-check'),error=>error.status===401);assert.equal(authAttempts,2,'재발급 실패 후 무한 재시도 금지');
+globalThis.fetch=async()=>{throw new TypeError('Failed to fetch');};
+await assert.rejects(()=>apiRequest('/network-check'),error=>error.code==='NETWORK_ERROR'&&error.message.includes('서버에 연결'));
+console.log('PASS: API contracts, cookies/CSRF, malformed response guards, cancelled-request guard, reissue success/failure limits');

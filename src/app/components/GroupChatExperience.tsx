@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
+import { SettlementExperience } from './SettlementExperience';
 import {
   linkScheduleFromChat,
-  linkSettlementFromChat,
   linkTransferFromChat,
   meetupChatKey,
   syncFinanceCompletion,
@@ -46,6 +46,7 @@ type ImageMessage = {
 };
 
 type ScheduleMessage = {
+  status?: 'POLLING' | 'CONFIRMED';
   id: string;
   type: 'schedule';
   sender: string;
@@ -66,6 +67,7 @@ type SettlementMessage = {
   isMe: boolean;
   sentAt: string;
   title: string;
+  items?: { memberId: string; name: string; amount: number }[];
   totalAmount: number;
   participants: number;
   paid: boolean;
@@ -156,13 +158,12 @@ export function GroupChatExperience({
   onBack: () => void;
 }) {
   const [messages, setMessages] = usePersistentState<ChatItem[]>(meetupChatKey(meetupId), createInitialMessages(meetupName));
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = usePersistentState(`moeasy:chat-draft:${meetupId}`, '');
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>(null);
   const [notice, setNotice] = useState('');
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState({ title: '', date: '2026-09-30', time: '19:30', location: '' });
-  const [settlementDraft, setSettlementDraft] = useState({ title: '', totalAmount: '', participants: String(Math.min(memberCount, 10)) });
   const [transferDraft, setTransferDraft] = useState({ recipient: '', amount: '', memo: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
@@ -254,42 +255,6 @@ export function GroupChatExperience({
     setNotice('일정을 채팅방에 공유했습니다.');
   };
 
-  const sendSettlement = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const totalAmount = Number(settlementDraft.totalAmount);
-    const participants = Number(settlementDraft.participants);
-    if (!settlementDraft.title.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isInteger(participants) || participants < 1) return;
-    const id = createId();
-    const item: SettlementMessage = {
-      id,
-      type: 'settlement',
-      sender: currentUserName,
-      isMe: true,
-      sentAt: new Date().toISOString(),
-      title: settlementDraft.title.trim(),
-      totalAmount,
-      participants,
-      paid: true,
-      paidCount: 1,
-    };
-    appendMessage(item);
-    linkSettlementFromChat(meetupId, {
-      id: `settlement-${id}`,
-      chatMessageId: id,
-      title: item.title,
-      totalAmount,
-      participants,
-      shareAmount: Math.ceil(totalAmount / participants),
-      paidCount: 1,
-      completed: participants === 1,
-      createdAt: item.sentAt,
-      source: 'chat',
-    });
-    setSettlementDraft({ title: '', totalAmount: '', participants: settlementDraft.participants });
-    setComposerMode(null);
-    setNotice('정산 요청을 채팅방에 공유했습니다.');
-  };
-
   const sendTransfer = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const amount = Number(transferDraft.amount);
@@ -351,10 +316,13 @@ export function GroupChatExperience({
     syncFinanceCompletion(meetupId, messageId, completed);
   };
 
+  if (composerMode === 'settlement') return <SettlementExperience meetupId={meetupId} meetupName={meetupName} initialCreate onBack={() => setComposerMode(null)} onCreated={record => {
+    appendMessage({ id: record.id, type: 'settlement', sender: currentUserName, isMe: true, sentAt: record.createdAt, title: record.title, totalAmount: record.totalAmount, items: record.items, participants: record.participants, paid: false, paidCount: 0 });
+  }} />;
   return <div className="flex h-screen flex-col overflow-hidden bg-[#F6F7F9]">
     <header className="z-50 shrink-0 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-3xl items-center gap-2 px-3 sm:px-5">
-        <button onClick={onBack} aria-label="모임으로 돌아가기" className="rounded-full p-2.5 text-slate-700 hover:bg-slate-100"><ArrowLeft className="h-5 w-5"/></button>
+        <button onClick={onBack} aria-label={window.history.state?.fromMessages ? "대화 목록으로 돌아가기" : "모임으로 돌아가기"} className="rounded-full p-2.5 text-slate-700 hover:bg-slate-100"><ArrowLeft className="h-5 w-5"/></button>
         <UserAvatar name={meetupName} className="h-10 w-10" textClassName="text-[11px]"/>
         <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-semibold text-slate-950">{meetupName}</h1><p className="mt-0.5 text-[11px] text-slate-500">멤버 {memberCount}명</p></div>
         <button aria-label="채팅 검색" className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100"><Search className="h-5 w-5"/></button>
@@ -394,7 +362,6 @@ export function GroupChatExperience({
 
     {composerMode === 'schedule' && <ComposerModal eyebrow="Schedule" title="일정 공유" description="채팅방 멤버가 바로 참석 여부를 선택할 수 있어요." onClose={() => setComposerMode(null)}><form onSubmit={sendSchedule} className="space-y-4"><ChatField label="일정명"><input required value={scheduleDraft.title} onChange={event => setScheduleDraft(current => ({ ...current, title: event.target.value }))} className="form-input" placeholder="예: 주간 정기 모임"/></ChatField><div className="grid grid-cols-2 gap-3"><ChatField label="날짜"><input required type="date" value={scheduleDraft.date} onChange={event => setScheduleDraft(current => ({ ...current, date: event.target.value }))} className="form-input"/></ChatField><ChatField label="시간"><input required type="time" value={scheduleDraft.time} onChange={event => setScheduleDraft(current => ({ ...current, time: event.target.value }))} className="form-input"/></ChatField></div><ChatField label="장소"><div className="relative"><MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input required value={scheduleDraft.location} onChange={event => setScheduleDraft(current => ({ ...current, location: event.target.value }))} className="form-input pl-11" placeholder="만날 장소를 입력하세요"/></div></ChatField><button type="submit" className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-white">채팅방에 일정 보내기</button></form></ComposerModal>}
 
-    {composerMode === 'settlement' && <ComposerModal eyebrow="Settlement" title="정산 요청" description="총액을 인원수로 나눠 1인당 금액을 계산합니다." onClose={() => setComposerMode(null)}><form onSubmit={sendSettlement} className="space-y-4"><ChatField label="정산명"><input required value={settlementDraft.title} onChange={event => setSettlementDraft(current => ({ ...current, title: event.target.value }))} className="form-input" placeholder="예: 모임 뒤풀이"/></ChatField><div className="grid grid-cols-2 gap-3"><ChatField label="총 금액"><div className="relative"><input required type="number" min="1" value={settlementDraft.totalAmount} onChange={event => setSettlementDraft(current => ({ ...current, totalAmount: event.target.value }))} className="form-input pr-9" placeholder="0"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span></div></ChatField><ChatField label="정산 인원"><div className="relative"><input required type="number" min="1" max={memberCount} value={settlementDraft.participants} onChange={event => setSettlementDraft(current => ({ ...current, participants: event.target.value }))} className="form-input pr-9"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">명</span></div></ChatField></div>{Number(settlementDraft.totalAmount) > 0 && Number(settlementDraft.participants) > 0 && <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">1인당 예상 금액</p><strong className="mt-1 block text-xl text-emerald-950">{Math.ceil(Number(settlementDraft.totalAmount) / Number(settlementDraft.participants)).toLocaleString('ko-KR')}원</strong></div>}<button type="submit" className="w-full rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold text-white">채팅방에 정산 보내기</button></form></ComposerModal>}
 
     {composerMode === 'transfer' && <ComposerModal eyebrow="Transfer" title="개별 송금 요청" description="특정 멤버 한 명에게 보낼 금액 요청을 만듭니다." onClose={() => setComposerMode(null)}><form onSubmit={sendTransfer} className="space-y-4"><ChatField label="요청 대상"><input required value={transferDraft.recipient} onChange={event => setTransferDraft(current => ({ ...current, recipient: event.target.value }))} className="form-input" placeholder="예: 김철수"/></ChatField><ChatField label="요청 금액"><div className="relative"><input required type="number" min="1" value={transferDraft.amount} onChange={event => setTransferDraft(current => ({ ...current, amount: event.target.value }))} className="form-input pr-9" placeholder="0"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span></div></ChatField><ChatField label="요청 사유"><input required value={transferDraft.memo} onChange={event => setTransferDraft(current => ({ ...current, memo: event.target.value }))} className="form-input" placeholder="예: 장비 공동 구매 비용"/></ChatField><div className="rounded-2xl bg-sky-50 p-4 text-xs leading-5 text-sky-800">공동 비용을 나누는 경우에는 <strong>/정산</strong>을 사용하세요. 이 기능은 한 사람에게 특정 금액을 요청할 때 사용합니다.</div><button type="submit" className="w-full rounded-xl bg-sky-600 py-3.5 text-sm font-semibold text-white">개별 송금 요청 보내기</button></form></ComposerModal>}
   </div>;
@@ -409,11 +376,12 @@ function ChatItemView({ item, onToggleAttendance, onTogglePaid, onToggleTransfer
       {item.type === 'text' && <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${item.isMe ? 'rounded-tr-[5px] bg-[#315EFB] text-white' : 'rounded-tl-[5px] border border-slate-200 bg-white text-slate-900'}`}>{item.text}</div>}
       {item.type === 'image' && <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white ${item.isMe ? 'rounded-tr-[5px]' : 'rounded-tl-[5px]'}`}><img src={item.imageUrl} alt={item.fileName} className="max-h-[420px] w-full object-cover"/>{item.caption && <p className="px-3.5 py-3 text-sm leading-6">{item.caption}</p>}</div>}
       {item.type === 'schedule' && <TaskCard label="일정" icon={<CalendarDays/>} title={item.title} accent="text-[#315EFB]">
-        <div className="space-y-2.5 text-sm text-slate-700"><p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-slate-400"/>{formatScheduleDate(item.date)} · {item.time}</p><p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"/><span>{item.location}</span></p></div>
-        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3"><span className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5"/>{item.attendeeCount}명 참석</span><button onClick={onToggleAttendance} className={`rounded-lg px-3 py-2 text-xs font-semibold ${item.attending ? 'bg-slate-100 text-slate-700' : 'bg-[#315EFB] text-white'}`}>{item.attending ? '참석 취소' : '참석하기'}</button></div>
+        <div className="space-y-2.5 text-sm text-slate-700"><p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-slate-400"/>{item.status === 'POLLING' ? '시간 조율 중' : `${formatScheduleDate(item.date)} · ${item.time}`}</p><p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"/><span>{item.location}</span></p></div>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3"><span className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5"/>{item.attendeeCount}명 참석</span><button disabled={item.status === 'POLLING'} onClick={onToggleAttendance} className={`rounded-lg px-3 py-2 text-xs font-semibold ${item.attending ? 'bg-slate-100 text-slate-700' : 'bg-[#315EFB] text-white'}`}>{item.attending ? '참석 취소' : '참석하기'}</button></div>
       </TaskCard>}
       {item.type === 'settlement' && <TaskCard label="정산" icon={<ReceiptText/>} title={item.title} accent="text-emerald-700">
-        <div className="flex items-end justify-between"><div><strong className="text-xl text-slate-950">{Math.ceil(item.totalAmount / item.participants).toLocaleString('ko-KR')}원</strong><p className="mt-1 text-xs text-slate-500">1인당 · 총 {item.participants}명</p></div><span className="text-xs font-medium text-slate-500">{item.paidCount}/{item.participants} 완료</span></div>
+        <div className="flex items-end justify-between"><div><strong className="text-xl text-slate-950">{item.totalAmount.toLocaleString('ko-KR')}원</strong><p className="mt-1 text-xs text-slate-500">총 정산액 · {item.participants}명</p></div><span className="text-xs font-medium text-slate-500">{item.paidCount}/{item.participants} 완료</span></div>
+        {item.items?.map(target => <p key={target.memberId} className="mt-2 flex justify-between text-xs"><span>{target.name}</span><strong>{target.amount.toLocaleString()}원</strong></p>)}
         <div className="my-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (item.paidCount / item.participants) * 100)}%` }}/></div>
         <button onClick={onTogglePaid} className={`flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold ${item.paid ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-white'}`}>{item.paid ? <><Check className="h-4 w-4"/>완료 취소</> : <><Check className="h-4 w-4"/>송금 완료</>}</button>
       </TaskCard>}

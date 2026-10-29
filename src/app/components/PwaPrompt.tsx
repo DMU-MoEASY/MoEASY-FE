@@ -65,8 +65,6 @@ export function PwaPrompt() {
     setInstallPrompt(null);
   };
 
-  if (!isMobile) return null;
-
   if (needRefresh) {
     return (
       <PromptShell icon={<RefreshCw className="h-5 w-5" />} title="새 버전이 준비됐어요" description="업데이트하면 최신 MoEasy를 바로 사용할 수 있어요.">
@@ -75,6 +73,9 @@ export function PwaPrompt() {
       </PromptShell>
     );
   }
+
+  // Desktop hides installation prompts, but must still be able to activate updates.
+  if (!isMobile) return null;
 
   if (offlineReady) {
     return (

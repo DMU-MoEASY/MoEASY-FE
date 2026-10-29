@@ -15,7 +15,7 @@ const settlementMembers = [
   { id: 'haneul', name: '윤하늘', label: 'HN', color: 'from-slate-500 to-slate-700' },
 ];
 
-export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
+export function ReceiptOcrExperience({ onBack, onApply }: { onBack: () => void; onApply?: (amount: number) => void }) {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<OcrWorkerHandle | null>(null);
@@ -204,8 +204,8 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
                 <OcrField label="사용처"><input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="상호명을 확인해주세요" className="form-input" />{storeCandidates.length > 1 && <div className="mt-2 flex flex-wrap gap-2" aria-label="인식된 사용처 후보">{storeCandidates.map((candidate) => <button key={candidate} type="button" onClick={() => setStoreName(candidate)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${storeName === candidate ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>{candidate}</button>)}</div>}</OcrField>
                 <OcrField label="결제 일시"><input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} className="form-input" /></OcrField>
                 <OcrField label="총 결제 금액"><div className="relative"><input inputMode="numeric" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value.replace(/[^\d]/g, ''))} placeholder="0" className="form-input pr-10" /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">원</span></div>{amountCandidates.length > 1 && <div className="mt-2 flex flex-wrap gap-2" aria-label="인식된 금액 후보">{amountCandidates.map((candidate) => <button key={`${candidate.amount}-${candidate.label}`} type="button" onClick={() => setTotalAmount(String(candidate.amount))} title={candidate.sourceLine} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${amountNumber === candidate.amount ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>{candidate.amount.toLocaleString('ko-KR')}원 <span className="opacity-70">· {candidate.label}</span></button>)}</div>}</OcrField>
-                <div className="rounded-xl bg-blue-50 px-4 py-3.5"><span className="flex items-center gap-2 text-xs font-medium text-blue-700"><Users className="h-4 w-4" />선택된 정산 대상</span><strong className="mt-1 block text-lg text-blue-950">{members}명</strong></div>
-                <div className="sm:col-span-2">
+                {!onApply && <div className="rounded-xl bg-blue-50 px-4 py-3.5"><span className="flex items-center gap-2 text-xs font-medium text-blue-700"><Users className="h-4 w-4" />선택된 정산 대상</span><strong className="mt-1 block text-lg text-blue-950">{members}명</strong></div>}
+                {!onApply && <div className="sm:col-span-2">
                   <div className="mb-3 flex items-center justify-between gap-3"><div><span className="text-sm font-semibold text-slate-700">정산 대상 선택</span><p className="mt-1 text-xs text-slate-400">함께 결제한 모임원을 선택해주세요.</p></div><button type="button" onClick={toggleAllMembers} className="shrink-0 rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">{selectedMemberIds.length === settlementMembers.length ? '전체 해제' : '전체 선택'}</button></div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {settlementMembers.map((member) => {
@@ -214,15 +214,15 @@ export function ReceiptOcrExperience({ onBack }: { onBack: () => void }) {
                     })}
                   </div>
                   {members === 0 && <p role="alert" className="mt-3 text-xs font-medium text-red-600">정산 대상을 한 명 이상 선택해주세요.</p>}
-                </div>
+                </div>}
               </div>}
               {status === 'done' && ocrConfidence !== null && ocrConfidence < 58 && <div className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">글자가 흐리거나 빛 반사가 감지됐어요. 인식 결과를 직접 수정하거나, 영수증 전체가 보이도록 정면에서 다시 촬영하면 더 정확해집니다.</div>}
             </div>
 
             <div className="rounded-[26px] bg-[#101828] p-6 text-white sm:p-7">
-              <p className="text-xs text-slate-400">1인당 정산 예상 금액</p>
-              <div className="mt-2 flex items-end justify-between gap-4"><strong className="text-3xl tracking-tight">{perPerson.toLocaleString('ko-KR')}원</strong><span className="text-xs text-slate-400">총 {formattedAmount}원 ÷ {members}명</span></div>
-              <button disabled={status !== 'done' || amountNumber === 0 || members === 0} className="mt-7 w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-35">{members > 0 ? `${members}명 정산 내용 적용하기` : '정산 대상을 선택해주세요'}</button>
+              <p className="text-xs text-slate-400">{onApply ? '정산에 적용할 총액' : '1인당 정산 예상 금액'}</p>
+              <div className="mt-2 flex items-end justify-between gap-4"><strong className="text-3xl tracking-tight">{(onApply ? amountNumber : perPerson).toLocaleString('ko-KR')}원</strong><span className="text-xs text-slate-400">{onApply ? '확인한 금액을 작성 화면에 반영해요' : `총 ${formattedAmount}원 ÷ ${members}명`}</span></div>
+              <button onClick={() => onApply?.(amountNumber)} disabled={status !== 'done' || !Number.isSafeInteger(amountNumber) || amountNumber <= 0 || (!onApply && members === 0)} className="mt-7 w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-35">{onApply ? '이 금액 적용하기' : `${members}명 정산 내용 적용하기`}</button>
             </div>
 
             {rawText && <details className="rounded-[22px] bg-white p-5 ring-1 ring-black/[0.05]"><summary className="cursor-pointer text-sm font-semibold text-slate-700">OCR 원문 확인</summary><textarea value={rawText} onChange={(event) => setRawText(event.target.value)} rows={8} className="mt-4 w-full resize-y rounded-xl bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-600 outline-none ring-1 ring-black/[0.05]" /><button type="button" onClick={reanalyzeRawText} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"><RefreshCw className="h-3.5 w-3.5" />수정한 원문 다시 분석</button></details>}

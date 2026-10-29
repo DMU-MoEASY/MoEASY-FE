@@ -17,8 +17,9 @@ class BrowserPersistenceStore implements PersistenceStore {
   write<T>(key: string, value: T) {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
+      window.dispatchEvent(new CustomEvent('moeasy:storage', { detail: key }));
     } catch {
-      // Keep the demo usable when browser storage is unavailable or full.
+      window.dispatchEvent(new CustomEvent('moeasy:storage-error'));
     }
   }
 

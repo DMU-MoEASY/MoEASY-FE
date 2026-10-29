@@ -1,0 +1,61 @@
+import { TimeGrid } from './TimeGrid';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { usePersistentState } from '../hooks/usePersistentState';
+import { persistenceStore } from '../lib/persistence';
+import { INITIAL_CLUB_SCHEDULES, INITIAL_DUES_STATE, meetupFinanceKey, meetupScheduleKey, publishClubSchedule, type ClubSchedule, type DuesManagementState } from '../services/meetupOperations';
+import { validateCandidates, recordAvailability, confirmAvailability, type SchedulePoll } from '../services/schedulePollRules';
+
+export function SchedulePollExperience({meetupId,meetupName,initialScheduleId,onBack}:{meetupId:number;meetupName:string;initialScheduleId?:string|number;onBack:()=>void}) {
+  const [schedules] = usePersistentState(meetupScheduleKey(meetupId), INITIAL_CLUB_SCHEDULES);
+  const [selectedId,setSelectedId] = useState<string | number | undefined>(initialScheduleId);
+  const session = persistenceStore.read<{memberId:number}>('moeasy:authSession');
+  const memberId = `user:${session?.memberId ?? 'local'}`;
+  const profile = persistenceStore.read<{nickname:string}>('moeasy:userProfile');
+  const memberName = profile?.nickname || '나';
+  const selected = schedules.find(item => String(item.id) === String(selectedId));
+  const select = (id?:string|number) => setSelectedId(id);
+  useEffect(() => { const url = new URL(window.location.href); if (selectedId !== undefined) url.searchParams.set('schedule',String(selectedId)); else url.searchParams.delete('schedule'); window.history.replaceState(window.history.state,'',url.pathname+url.search); }, [selectedId]);
+
+  return <main className="min-h-screen bg-background px-4 py-6 sm:px-6"><div className="mx-auto max-w-3xl"><button onClick={() => selectedId === undefined ? onBack() : select()} className="mb-6 flex min-h-11 items-center gap-2 text-sm"><ArrowLeft className="h-4 w-4"/>{selectedId === undefined ? '모임 일정으로' : '조율할 일정 선택'}</button><p className="text-sm text-muted-foreground">{meetupName}</p><h1 className="mt-2 text-2xl font-semibold">{selected?.title ?? (selectedId === 'new' ? '새 일정 만들기' : '일정별 시간 조율')}</h1><p className="mt-2 mb-6 text-sm text-muted-foreground">가용시간 응답은 참석 신청과 별개입니다. 현재 이 기기에 저장됩니다.</p>
+    {selectedId === undefined ? <><button onClick={()=>select('new')} className="mb-5 flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-white"><Plus className="h-4 w-4"/>투표로 일정 만들기</button><div className="space-y-3">{schedules.map(item=><button key={item.id} onClick={()=>select(item.id)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-5 text-left"><span><strong className="block">{item.title}</strong><span className="mt-1 block text-sm text-muted-foreground">{item.status === 'POLLING' ? '시간표에 가능한 구간을 선택해주세요' : `${item.date} ${item.time}`}</span></span><span className="shrink-0 text-sm text-primary">{item.status === 'POLLING' ? '시간 조율 중' : item.poll?.confirmedSlot ? '일정 확정' : '투표 만들기'}</span></button>)}</div></> : selected?.poll ? <PollVoting key={selected.id} schedule={selected} memberId={memberId} onSave={schedule=>publishClubSchedule(meetupId,meetupName,schedule)}/> : selected || selectedId === 'new' ? <PollSetup key={String(selectedId)} schedule={selected} meetupId={meetupId} memberId={memberId} memberName={memberName} onSave={schedule=>{publishClubSchedule(meetupId,meetupName,schedule);select(schedule.id);}}/> : <p role="alert">일정을 찾을 수 없습니다. 목록에서 다시 선택해주세요.</p>}
+  </div></main>;
+}
+function PollSetup({schedule,meetupId,memberId,memberName,onSave}:{schedule?:ClubSchedule;meetupId:number;memberId:string;memberName:string;onSave:(schedule:ClubSchedule)=>void}) {
+  const [title,setTitle] = useState(schedule?.title ?? '');
+  const [description,setDescription] = useState(schedule?.description ?? '');
+  const [place,setPlace] = useState(schedule?.place ?? '');
+  const [startDate,setStartDate] = useState(() => { const d=new Date(); d.setDate(d.getDate()+1); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); });
+  const [days,setDays] = useState(7);
+  const [startHour,setStartHour] = useState(9);
+  const [endHour,setEndHour] = useState(23);
+  const [error,setError] = useState('');
+  const [targets,setTargets] = useState([memberId]);
+  const [finance] = usePersistentState<DuesManagementState>(meetupFinanceKey(meetupId), INITIAL_DUES_STATE);
+  const members = [{id:memberId,name:memberName},...finance.members.filter(item=>item.name !== memberName).map(item=>({id:`local:${item.id}`,name:item.name}))];
+  const submit = (event:React.FormEvent) => {
+    event.preventDefault();
+    try {
+      if (!title.trim()) throw new Error('일정 제목을 입력해주세요.');
+      if (!targets.length) throw new Error('참여 대상을 선택해주세요.');
+      if(!startDate || endHour <= startHour) throw new Error('시작 날짜와 올바른 시간 범위를 선택해주세요.');
+      const cells:string[]=[];
+      for(let day=0;day<days;day++) { const d=new Date(`${startDate}T12:00:00`);d.setDate(d.getDate()+day);const date=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);for(let half=startHour*2;half<endHour*2;half++) {const slot=`${date}T${String(Math.floor(half/2)).padStart(2,'0')}:${half%2?'30':'00'}`;if(new Date(slot).getTime()>Date.now())cells.push(slot);} }
+      const candidates = validateCandidates(cells,Date.now(),true);
+      const poll:SchedulePoll = {mode:'GRID',ownerId:memberId, participants:members.filter(item=>targets.includes(item.id)), candidates, responses:{}};
+      onSave({...schedule, id:schedule?.id ?? crypto.randomUUID(), title:title.trim(),description:description.trim(),place:place.trim(),date:'시간 조율 중',dateValue:'',time:'',attending:false,status:'POLLING',poll});
+    } catch(err) {setError((err as Error).message);}
+  };
+  return <form onSubmit={submit} className="space-y-5 rounded-2xl border border-border bg-card p-5"><label className="block text-sm">일정 제목<input required maxLength={100} value={title} onChange={e=>setTitle(e.target.value)} className="form-input mt-2"/></label><label className="block text-sm">설명 (선택)<textarea maxLength={500} value={description} onChange={e=>setDescription(e.target.value)} className="form-input mt-2"/></label><label className="block text-sm">장소 (선택)<input value={place} onChange={e=>setPlace(e.target.value)} className="form-input mt-2"/></label><fieldset><legend className="mb-3 font-semibold">참여 대상</legend><p className="mb-3 text-xs text-muted-foreground">로컬 회비 관리의 대상 목록입니다. 서버 회원 목록 연동 전에는 실제 회원과 다를 수 있습니다.</p><div className="grid grid-cols-2 gap-2">{members.map(member=><label key={member.id} className="flex gap-2 rounded-lg bg-secondary p-3 text-sm"><input type="checkbox" checked={targets.includes(member.id)} onChange={()=>setTargets(current=>current.includes(member.id)?current.filter(id=>id!==member.id):[...current,member.id])}/>{member.name}{member.id===memberId?' (나)':''}</label>)}</div></fieldset><fieldset><legend className="mb-3 font-semibold">가능 시간을 입력할 시간표</legend><div className="grid grid-cols-2 gap-3"><label className="text-sm">시작 날짜<input type="date" required value={startDate} onChange={e=>setStartDate(e.target.value)} className="form-input mt-2"/></label><label className="text-sm">날짜 범위<select value={days} onChange={e=>setDays(Number(e.target.value))} className="form-input mt-2">{[3,5,7,14].map(n=><option key={n} value={n}>{n}일</option>)}</select></label><label className="text-sm">시작 시간<select value={startHour} onChange={e=>setStartHour(Number(e.target.value))} className="form-input mt-2">{Array.from({length:24},(_,i)=><option key={i} value={i}>{i}:00</option>)}</select></label><label className="text-sm">종료 시간<select value={endHour} onChange={e=>setEndHour(Number(e.target.value))} className="form-input mt-2">{Array.from({length:24},(_,i)=>i+1).map(i=><option key={i} value={i}>{i}:00</option>)}</select></label></div><p className="mt-3 text-sm text-muted-foreground">각 참여자가 시간표에서 가능한 구간을 칠하면 겹치는 시간을 집계합니다.</p></fieldset>{error && <p role="alert" className="text-sm text-red-600">{error}</p>}<button className="w-full rounded-xl bg-primary py-3 font-semibold text-white">가용시간 투표 시작</button></form>;
+}
+function PollVoting({schedule,memberId,onSave}:{schedule:ClubSchedule;memberId:string;onSave:(schedule:ClubSchedule)=>void}) {
+  const poll = schedule.poll!;
+  const [checked,setChecked] = useState(poll.responses[memberId] ?? []);
+  const [notice,setNotice] = useState('');
+  const [confirmSlot,setConfirmSlot] = useState<string>();
+  const eligible = poll.participants.some(item=>item.id===memberId);
+  const confirm = (slot:string) => {
+    try { const next = confirmAvailability(poll,memberId,slot); const [dateValue = '',time = ''] = slot.split('T'); onSave({...schedule,poll:next,status:'CONFIRMED',dateValue,time,date:new Date(`${dateValue}T00:00:00`).toLocaleDateString('ko-KR'),attending:false}); setConfirmSlot(undefined); setNotice('일정이 확정되었습니다. 참석 여부는 일정에서 별도로 선택해주세요.'); } catch(err) {setNotice((err as Error).message);}
+  };
+  return <section className="space-y-4"><div className="rounded-2xl border border-border bg-card p-5"><p className="font-semibold">{poll.confirmedSlot ? '일정 확정' : '시간 조율 중'}</p>{schedule.description && <p className="mt-2 text-sm">{schedule.description}</p>}<p className="mt-2 text-sm text-muted-foreground">{Object.keys(poll.responses).filter(id=>poll.participants.some(member=>member.id===id)).length}/{poll.participants.length}명 응답 · 장소 {schedule.place || '미정'}</p></div><TimeGrid candidates={poll.candidates} selected={checked} counts={Object.fromEntries(poll.candidates.map(slot=>[slot,poll.participants.filter(member=>poll.responses[member.id]?.includes(slot)).length]))} names={Object.fromEntries(poll.candidates.map(slot=>[slot,poll.participants.filter(member=>poll.responses[member.id]?.includes(slot)).map(member=>member.name)]))} total={poll.participants.length} disabled={!eligible || !!poll.confirmedSlot} confirmedSlot={poll.confirmedSlot} onChange={setChecked}/>{poll.confirmedSlot ? <p className="rounded-xl bg-blue-50 p-4 font-semibold text-primary">확정된 시간: {new Date(poll.confirmedSlot).toLocaleString('ko-KR')}</p> : <div className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">가장 많이 겹치는 시간</h2><p className="mt-1 text-xs text-muted-foreground">저장된 응답 기준 · 같은 인원이면 빠른 시간순 · 각 칸은 30분입니다.</p>{poll.candidates.map(slot=>({slot,members:poll.participants.filter(member=>poll.responses[member.id]?.includes(slot))})).filter(item=>item.members.length>0).sort((a,b)=>b.members.length-a.members.length || a.slot.localeCompare(b.slot)).slice(0,5).map(({slot,members})=><div key={slot} className="mt-4 border-t border-border pt-3"><p className="text-sm font-medium">{new Date(slot).toLocaleString('ko-KR')} · {members.length}/{poll.participants.length}명</p><p className="mt-1 text-xs text-muted-foreground">{members.map(member=>member.name).join(', ')}</p>{poll.ownerId===memberId && <button onClick={()=>setConfirmSlot(slot)} className="mt-2 rounded-lg bg-secondary px-3 py-2 text-sm">이 시간으로 확정</button>}</div>)}{!Object.keys(poll.responses).length && <p className="mt-4 text-sm text-muted-foreground">가능 시간을 입력하고 응답을 저장해주세요.</p>}</div>}{!poll.confirmedSlot && eligible && <button onClick={()=>{try {onSave({...schedule,poll:recordAvailability(poll,memberId,checked)});setNotice(checked.length?'응답을 저장했습니다. 다시 선택해 수정할 수 있어요.':'가능한 시간 없음으로 응답을 저장했습니다.');}catch(err){setNotice((err as Error).message);}}} className="w-full rounded-xl bg-primary py-3 font-semibold text-white">{checked.length ? `${checked.length}개 시간 칸 응답 저장` : '가능한 시간 없음으로 응답'}</button>}{!eligible && <p className="text-sm text-muted-foreground">참여 대상에 포함되지 않아 결과만 확인할 수 있습니다.</p>}{confirmSlot && !poll.confirmedSlot && <div role="region" aria-label="일정 확정 확인" className="rounded-xl border border-primary bg-card p-5"><p className="font-semibold">{new Date(confirmSlot).toLocaleString('ko-KR')}으로 확정할까요?</p><p className="mt-2 text-sm text-muted-foreground">확정 후에는 투표 응답을 변경할 수 없습니다.</p><div className="mt-4 flex gap-3"><button onClick={()=>setConfirmSlot(undefined)} className="rounded-lg bg-secondary px-4 py-3">취소</button><button onClick={()=>confirm(confirmSlot)} className="rounded-lg bg-primary px-4 py-3 text-white">일정 확정하기</button></div></div>}<p role="status" className="text-sm text-primary">{notice}</p></section>;
+}

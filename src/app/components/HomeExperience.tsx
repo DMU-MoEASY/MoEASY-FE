@@ -1,3 +1,7 @@
+import { openMeetupFromCard, meetupCover } from '../navigation/meetupTransition';
+import { useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
+import { globalScheduleKey, meetupFinanceKey, type GlobalScheduleEvent, type DuesManagementState } from '../services/meetupOperations';
 import { ArrowRight, CalendarDays, Clock3, MapPin, Plus, Sparkles, Users } from 'lucide-react';
 
 type Meetup = {
@@ -14,30 +18,32 @@ interface HomeExperienceProps {
   onCreate: () => void;
   onSelect: (meetup: Meetup) => void;
   onOpenMap: () => void;
+  onSchedule: () => void;
+  onFinance: (meetup: Meetup) => void;
 }
 
-const photos = [
-  'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1000&q=85',
-  'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1000&q=85',
-];
 
-export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeExperienceProps) {
-  const featured = meetups.slice(0, 3);
+
+export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSchedule, onFinance }: HomeExperienceProps) {
+  const [showAll, setShowAll] = useState(false);
+  const featured = showAll ? meetups : meetups.slice(0, 3);
+  const [events] = usePersistentState<GlobalScheduleEvent[]>(globalScheduleKey, []);
+  const upcoming = events.filter(event => new Date(`${event.dateValue}T${event.time}`).getTime() >= Date.now())
+    .sort((a,b) => `${a.dateValue} ${a.time}`.localeCompare(`${b.dateValue} ${b.time}`)).slice(0,3);
 
   return (
-    <div className="space-y-10 lg:space-y-14">
-      <section className="relative overflow-hidden rounded-[28px] bg-[#101828] text-white min-h-[390px] lg:min-h-[430px]">
+    <div className="space-y-7 lg:space-y-8">
+      <section className="relative overflow-hidden rounded-[28px] bg-[#101828] text-white ">
         <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_70%_25%,#4F7CFF_0,transparent_35%),radial-gradient(circle_at_25%_100%,#14B8A6_0,transparent_28%)]" />
         <div className="absolute inset-0 opacity-[0.07] bg-[linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] bg-[size:48px_48px]" />
-        <div className="relative grid h-full gap-8 p-6 sm:p-8 lg:grid-cols-[1.05fr_.95fr] lg:p-12">
+        <div className="relative grid h-full gap-8 p-6 sm:p-8 lg:grid-cols-[1.05fr_.95fr] lg:p-8">
           <div className="flex flex-col justify-between">
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
                 <Sparkles className="h-3.5 w-3.5 text-[#8FAAFF]" />
-                오늘의 모임 브리핑
+                우리의 모임, MoEasy
               </div>
-              <h1 className="max-w-xl text-[32px] font-semibold leading-[1.15] tracking-[-0.04em] sm:text-4xl lg:text-5xl">
+              <h1 className="max-w-xl text-[32px] font-semibold leading-[1.15] tracking-[-0.04em] sm:text-4xl lg:text-[40px]">
                 사람을 만나는 일이<br />조금 더 쉬워지도록.
               </h1>
               <p className="mt-5 max-w-md text-sm leading-6 text-slate-300 sm:text-base">
@@ -54,20 +60,20 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
             </div>
           </div>
 
-          <button disabled={!meetups[0]} onClick={() => meetups[0] && onSelect(meetups[0])} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 lg:p-4">
-            <div className="relative h-40 overflow-hidden rounded-[18px] lg:h-48">
-              <img src={photos[0]} alt="한강 러닝 모임" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <button disabled={!meetups[0]} onClick={event => meetups[0] && openMeetupFromCard(event.currentTarget, () => onSelect(meetups[0]!))} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 lg:p-4">
+            <div data-meetup-cover className="relative h-40 overflow-hidden rounded-[18px] lg:h-40">
+              <img src={meetupCover(meetups[0]?.id ?? 1)} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
-              <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs font-semibold text-primary backdrop-blur">D-1 · 참여 예정</span>
+              <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs font-semibold text-primary backdrop-blur">참여 중인 모임</span>
               <div className="absolute bottom-3 left-3 right-3">
-                <p className="text-lg font-semibold">주간 러닝 모임</p>
-                <p className="mt-1 text-xs text-white/75">강남 러닝 크루</p>
+                <p className="text-lg font-semibold">{meetups[0]?.name ?? '새로운 모임을 시작해보세요'}</p>
+                <p className="mt-1 text-xs text-white/75">{meetups[0]?.category ?? '함께하는 일상'}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 px-1 pb-1 pt-4 text-xs text-white/70">
-              <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#8FAAFF]" />9월 9일 화요일</span>
-              <span className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#8FAAFF]" />오후 7:30</span>
-              <span className="col-span-2 flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8FAAFF]" />반포 한강공원 달빛광장</span>
+              <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#8FAAFF]" />{meetups[0]?.region ?? '활동 지역을 정해보세요'}</span>
+              <span className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#8FAAFF]" />멤버 {meetups[0]?.members ?? 0}명</span>
+              <span className="col-span-2 flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8FAAFF]" />모임 홈으로 이동</span>
             </div>
           </button>
         </div>
@@ -79,13 +85,13 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
             <p className="mb-1 text-sm text-muted-foreground">내 모임</p>
             <h2 className="text-2xl font-semibold tracking-[-0.03em]">참여 중인 모임</h2>
           </div>
-          <button className="hidden items-center gap-1 text-sm text-muted-foreground hover:text-foreground sm:flex">전체 보기 <ArrowRight className="h-4 w-4" /></button>
+          {meetups.length > 3 && <button onClick={() => setShowAll(value => !value)} aria-expanded={showAll} className="flex min-h-11 items-center gap-1 text-sm font-medium text-primary">{showAll ? '접기' : `전체 ${meetups.length}개 보기`} <ArrowRight className="h-4 w-4" /></button>}
         </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {featured.map((meetup, index) => (
-            <button key={meetup.id} onClick={() => onSelect(meetup)} className="group overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition hover:border-primary/35 hover:shadow-md">
-              <div className="relative h-44 overflow-hidden">
-                <img src={photos[index]} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {featured.map((meetup) => (
+            <button key={meetup.id} onClick={event => openMeetupFromCard(event.currentTarget, () => onSelect(meetup))} className="group overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition hover:border-primary/35 hover:shadow-md">
+              <div data-meetup-cover className="relative h-44 overflow-hidden">
+                <img src={meetupCover(meetup.id)} loading="lazy" alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <span className="absolute left-4 top-4 rounded-md border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-primary backdrop-blur">{meetup.category}</span>
                 <div className="absolute bottom-4 left-4 right-4 text-white">
@@ -102,33 +108,19 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap }: HomeE
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="mb-5 flex items-center justify-between">
-            <div><p className="text-sm text-muted-foreground">다가오는 일정</p><h2 className="mt-1 text-xl font-semibold">이번 주 일정</h2></div>
-            <CalendarDays className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            {[
-              ['09', '화', '주간 러닝 모임', '19:30 · 반포 한강공원'],
-              ['12', '금', '프론트엔드 스터디', '20:00 · 판교 스타트업캠퍼스'],
-              ['14', '일', '북한산 초보 코스', '08:00 · 북한산 우이역'],
-            ].map(([date, day, title, meta], index) => (
-              <div key={title} className={`flex items-center gap-4 py-4 ${index < 2 ? 'border-b border-border/70' : ''}`}>
-                <div className="w-12 text-center"><strong className="block text-xl">{date}</strong><span className="text-xs text-muted-foreground">{day}</span></div>
-                <div className="min-w-0 flex-1"><p className="font-medium">{title}</p><p className="mt-1 truncate text-sm text-muted-foreground">{meta}</p></div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <button onClick={onOpenMap} className="group relative min-h-64 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-6 text-left">
-          <div className="relative flex h-full flex-col justify-between">
-            <div className="flex items-start justify-between"><span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-slate-600">주변 모임</span><MapPin className="h-5 w-5 text-slate-500" /></div>
-            <div><p className="text-4xl font-semibold tracking-tight">3</p><h3 className="mt-1 text-lg font-semibold">지금 참여 가능한 번개</h3><p className="mt-2 text-sm text-slate-600">내 주변 2km 안에서 열리고 있어요.</p></div>
-          </div>
-        </button>
-      </section>
+    <section className="grid gap-4 lg:grid-cols-2" aria-label="확인할 일">
+      <div className="rounded-2xl border border-border bg-card p-5"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">다가오는 일정</h2><button onClick={onSchedule} className="rounded-lg px-3 py-2 text-sm text-primary">전체 일정 →</button></div>
+        {upcoming.length ? upcoming.map(event => <button key={event.id} onClick={onSchedule} className="flex w-full items-center gap-3 border-t border-border py-4 text-left"><CalendarDays className="h-5 w-5 shrink-0 text-primary"/><div className="min-w-0 flex-1"><p className="font-medium break-words">{event.title}</p><p className="mt-1 text-sm text-muted-foreground">{event.dateValue} {event.time} · {event.group}</p><p className="mt-1 text-sm text-muted-foreground">{event.place}</p></div><ArrowRight className="h-4 w-4 shrink-0"/></button>) : <div className="py-5"><p className="text-sm text-muted-foreground">예정된 일정이 없습니다.</p><button onClick={onSchedule} className="mt-3 rounded-lg bg-secondary px-4 py-3 text-sm">첫 일정 등록하기</button></div>}
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-5"><h2 className="text-lg font-semibold">모임별 정산 확인</h2><p className="mt-2 text-sm text-muted-foreground">모임 전체의 진행 중인 정산입니다.</p><div className="mt-4 [&:has(button)>p]:hidden"><p className="py-5 text-sm text-muted-foreground">현재 진행 중인 정산이 없습니다.</p>{meetups.map(meetup => <FinanceTask key={meetup.id} meetup={meetup} onOpen={() => onFinance(meetup)}/>)}{meetups.length === 0 && <p className="py-5 text-sm text-muted-foreground">모임에 참여하면 정산을 확인할 수 있어요.</p>}</div></div>
+    </section>
     </div>
   );
+}
+
+function FinanceTask({meetup,onOpen}:{meetup:Meetup;onOpen:()=>void}) {
+  const [finance] = usePersistentState<Pick<DuesManagementState,'settlements'>>(meetupFinanceKey(meetup.id), {settlements:[]});
+  const count = finance.settlements?.filter(item => !item.completed).length ?? 0;
+  if (!count) return null;
+  return <button onClick={onOpen} className="flex w-full items-center justify-between gap-3 border-t border-border py-4 text-left"><span className="min-w-0 break-words text-sm font-medium">{meetup.name}</span><span className={`shrink-0 text-sm ${count ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>{count ? `${count}건 진행 중` : '진행 중인 정산 없음'} →</span></button>;
 }

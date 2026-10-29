@@ -1,6 +1,10 @@
+import type { SchedulePoll } from './schedulePollRules';
 import { persistenceStore } from '../lib/persistence';
 
 export type ClubSchedule = {
+  description?: string;
+  status?: 'POLLING' | 'CONFIRMED';
+  poll?: SchedulePoll;
   id: string | number;
   date: string;
   dateValue: string;
@@ -13,6 +17,7 @@ export type ClubSchedule = {
 };
 
 export type GlobalScheduleEvent = {
+  status?: 'POLLING' | 'CONFIRMED';
   id: string | number;
   dateValue: string;
   day: string;
@@ -46,7 +51,11 @@ export type SettlementRecord = {
   paidCount: number;
   completed: boolean;
   createdAt: string;
-  source: 'chat';
+  source: 'chat' | 'local';
+  description?: string;
+  dueAt?: string;
+  splitMode?: 'EQUAL' | 'CUSTOM';
+  items?: { memberId: string; name: string; amount: number }[];
 };
 
 export type TransferRecord = {
@@ -202,4 +211,35 @@ export function syncFinanceCompletion(meetupId: string | number, chatMessageId: 
 export function patchLinkedChatMessage(meetupId: string | number, chatMessageId: string, patch: Record<string, unknown>) {
   const messages = persistenceStore.read<Array<Record<string, unknown>>>(meetupChatKey(meetupId)) ?? [];
   persistenceStore.write(meetupChatKey(meetupId), messages.map(message => message.id === chatMessageId ? { ...message, ...patch } : message));
+}
+
+// One club schedule is the source for global calendar, map and linked chat updates.
+export function publishClubSchedule(meetupId: string | number, meetupName: string, schedule: ClubSchedule) {
+  if (schedule.poll?.confirmedSlot && !schedule.chatMessageId) {
+    const chatMessageId = `schedule:${schedule.id}`;
+    schedule = {...schedule, chatMessageId};
+    const messages = persistenceStore.read<Array<Record<string,unknown>>>(meetupChatKey(meetupId)) ?? [];
+    const profile = persistenceStore.read<{nickname:string}>('moeasy:userProfile');
+    persistenceStore.write(meetupChatKey(meetupId), [...messages.filter(item=>item.id !== chatMessageId), {id:chatMessageId,type:'schedule',sender:profile?.nickname || '나',isMe:true,sentAt:new Date().toISOString(),title:schedule.title,date:schedule.dateValue,time:schedule.time,location:schedule.place,status:'CONFIRMED',attending:false,attendeeCount:0}]);
+  }
+  const schedules = persistenceStore.read<ClubSchedule[]>(meetupScheduleKey(meetupId)) ?? INITIAL_CLUB_SCHEDULES;
+  persistenceStore.write(meetupScheduleKey(meetupId), [...schedules.filter(item => item.id !== schedule.id), schedule]);
+  const global = persistenceStore.read<GlobalScheduleEvent[]>(globalScheduleKey) ?? INITIAL_GLOBAL_SCHEDULES;
+  const id = `club:${meetupId}:${schedule.id}`;
+  const date = schedule.dateValue ? new Date(`${schedule.dateValue}T00:00:00`) : null;
+  const next: GlobalScheduleEvent = {id, meetupId, chatMessageId:schedule.chatMessageId, title:schedule.title, group:meetupName, dateValue:schedule.dateValue, day: date ? String(date.getDate()).padStart(2,'0') : '', dow: date ? (['일','월','화','수','목','금','토'][date.getDay()] ?? '') : '', time:schedule.time, place:schedule.place, color:'bg-blue-500', attending:schedule.attending, status:schedule.status};
+  persistenceStore.write(globalScheduleKey, [...global.filter(item => item.id !== id && !(String(item.meetupId) === String(meetupId) && (item.id === schedule.id || (schedule.chatMessageId && item.chatMessageId === schedule.chatMessageId)))), next]);
+  if (schedule.chatMessageId) patchLinkedChatMessage(meetupId, schedule.chatMessageId, {title:schedule.title, date:schedule.dateValue, time:schedule.time, location:schedule.place, status:schedule.status, attending:schedule.attending});
+}
+
+export function removeClubSchedule(meetupId: string | number, scheduleId: string | number) {
+  const schedules = persistenceStore.read<ClubSchedule[]>(meetupScheduleKey(meetupId)) ?? INITIAL_CLUB_SCHEDULES;
+  const schedule = schedules.find(item=>String(item.id) === String(scheduleId));
+  persistenceStore.write(meetupScheduleKey(meetupId), schedules.filter(item=>String(item.id) !== String(scheduleId)));
+  const global = persistenceStore.read<GlobalScheduleEvent[]>(globalScheduleKey) ?? INITIAL_GLOBAL_SCHEDULES;
+  persistenceStore.write(globalScheduleKey, global.filter(item=>!(String(item.meetupId) === String(meetupId) && (String(item.id) === `club:${meetupId}:${scheduleId}` || item.id === scheduleId || (schedule?.chatMessageId && item.chatMessageId === schedule.chatMessageId)))));
+  if (schedule?.chatMessageId) {
+    const messages = persistenceStore.read<Array<{id:string}>>(meetupChatKey(meetupId)) ?? [];
+    persistenceStore.write(meetupChatKey(meetupId), messages.filter(item=>item.id !== schedule.chatMessageId));
+  }
 }

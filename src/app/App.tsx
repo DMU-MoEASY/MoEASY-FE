@@ -881,7 +881,8 @@ export default function App() {
   if (showReceiptScanner) {
     return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><SettlementExperience meetupId={selectedMeetup.id} meetupName={selectedMeetup.name} initialCreate onBack={() => {
       setShowReceiptScanner(false);
-      setShowFinanceManagement(true);
+      setShowFinanceManagement(false);
+      setShowMeetupDetail(true);
     }} /></ScreenEntrance>;
   }
 

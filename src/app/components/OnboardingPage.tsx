@@ -1,9 +1,10 @@
+import { RegionSelector } from './RegionSelector';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, MapPin, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, Sparkles, UserRound } from 'lucide-react';
 import { isApiMode } from '../config/runtime';
 import { ApiError } from '../lib/apiClient';
 import { onboardingApi, type RegionProvince } from '../services/p0Api';
-import { activityRegionGroups, activityRegionOptions, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
+import { activityRegionGroups, onboardingInterestOptions, type UserProfile } from '../services/userProfile';
 
 interface OnboardingPageProps {
   initialProfile: UserProfile;
@@ -23,6 +24,8 @@ const interestCodes: Record<string, string> = {
   개발: 'DEVELOPMENT',
 };
 
+const localRegionGroups:RegionProvince[] = activityRegionGroups.map(group=>({provinceName:group.label,regions:group.regions.map(value=>({code:value,name:value.split(' ').slice(1).join(' ')}))}));
+
 export function OnboardingPage({ initialProfile, onComplete }: OnboardingPageProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [nickname, setNickname] = useState(
@@ -36,6 +39,9 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
   );
   const [regionCode, setRegionCode] = useState('');
   const [apiRegionGroups, setApiRegionGroups] = useState<RegionProvince[]>([]);
+  const [regionLoading,setRegionLoading] = useState(isApiMode);
+  const [regionError,setRegionError] = useState('');
+  const [regionRetry,setRegionRetry] = useState(0);
   const [interests, setInterests] = useState<string[]>(
     initialProfile.nickname === '김모이지' ? [] : initialProfile.interests,
   );
@@ -45,21 +51,24 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
 
   const trimmedNickname = nickname.trim();
   const nicknameIsValid = trimmedNickname.length >= 2 && trimmedNickname.length <= 12;
-  const regionIsValid = isApiMode ? regionCode.length === 5 : activityRegion.trim().length >= 2;
+  const selectableRegions = isApiMode ? apiRegionGroups : localRegionGroups;
+  const selectedRegionValue = isApiMode ? regionCode : activityRegion;
+  const regionIsValid = !regionLoading && !regionError && selectableRegions.some(group=>group.regions.some(region=>region.code===selectedRegionValue));
   const interestsAreValid = interests.length >= 3;
 
   useEffect(() => {
     if (!isApiMode) return;
     let cancelled = false;
+    setRegionLoading(true);setRegionError('');
     void onboardingApi.getRegions()
       .then((groups) => {
-        if (!cancelled) setApiRegionGroups(groups);
+        if (!cancelled) { if (!Array.isArray(groups) || !groups.length || groups.some(group=>!group.provinceName || !Array.isArray(group.regions))) { setRegionError('지역 목록을 확인할 수 없습니다. 다시 불러와주세요.'); } else setApiRegionGroups(groups); }
       })
       .catch((requestError: unknown) => {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : '지역 목록을 불러오지 못했습니다.');
-      });
+        if (!cancelled) setRegionError(requestError instanceof Error ? requestError.message : '지역 목록을 불러오지 못했습니다.');
+      }).finally(()=>{if(!cancelled)setRegionLoading(false);});
     return () => { cancelled = true; };
-  }, []);
+  }, [regionRetry]);
 
   const toggleInterest = (interest: string) => {
     setInterests((current) => {
@@ -93,7 +102,7 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
   };
 
   const finish = async () => {
-    if (!nicknameIsValid || !interestsAreValid) return;
+    if (!nicknameIsValid || !regionIsValid || !interestsAreValid) return;
     const profile = {
       nickname: trimmedNickname,
       bio: bio.trim() || '새로운 모임을 찾고 있어요.',
@@ -193,46 +202,14 @@ export function OnboardingPage({ initialProfile, onComplete }: OnboardingPagePro
                   />
                 </label>
 
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-slate-800">주 활동 지역</span>
-                  <span className="relative block">
-                    <MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                      required
-                      value={isApiMode ? regionCode : activityRegion}
-                      onChange={(event) => {
-                        if (!isApiMode) {
-                          setActivityRegion(event.target.value);
-                          return;
-                        }
-                        const nextCode = event.target.value;
-                        const province = apiRegionGroups.find((group) => group.regions.some((region) => region.code === nextCode));
-                        const region = province?.regions.find((item) => item.code === nextCode);
-                        setRegionCode(nextCode);
-                        setActivityRegion(province && region ? `${province.provinceName} ${region.name}` : '');
-                      }}
-                      disabled={isApiMode && apiRegionGroups.length === 0}
-                      className="form-input appearance-none pl-11"
-                    >
-                      <option value="">{isApiMode && apiRegionGroups.length === 0 ? '지역 목록 불러오는 중...' : '지역을 선택해주세요'}</option>
-                      {isApiMode ? apiRegionGroups.map((group) => (
-                        <optgroup key={group.provinceName} label={group.provinceName}>
-                          {group.regions.map((region) => <option key={region.code} value={region.code}>{region.name}</option>)}
-                        </optgroup>
-                      )) : <>
-                        {activityRegion && !activityRegionOptions.includes(activityRegion) && (
-                          <option value={activityRegion}>현재 설정 · {activityRegion}</option>
-                        )}
-                        {activityRegionGroups.map((group) => (
-                          <optgroup key={group.label} label={group.label}>
-                            {group.regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                          </optgroup>
-                        ))}
-                      </>}
-                    </select>
-                  </span>
-                  <p className="mt-2 text-xs text-slate-400">주변 모임 추천의 기본 지역으로 사용돼요.</p>
-                </label>
+                <RegionSelector
+                  groups={isApiMode ? apiRegionGroups : localRegionGroups}
+                  value={isApiMode ? regionCode : activityRegion}
+                  onChange={(code,label)=>{setRegionCode(isApiMode?code:'');setActivityRegion(isApiMode?label:code);}}
+                  loading={regionLoading}
+                  error={regionError}
+                  onRetry={()=>setRegionRetry(value=>value+1)}
+                />
               </div>
 
               {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}

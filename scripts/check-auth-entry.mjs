@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const output=await build({entryPoints:['src/app/services/authSession.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+const {resolveAuthEntry}=await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].text).toString('base64')}`);
+const unfinished={mode:'social',provider:'GOOGLE',memberId:2,onboardingCompleted:false};
+assert.equal(resolveAuthEntry(null,false),'login','최초 방문');
+assert.equal(resolveAuthEntry(unfinished,false),'login','이전 방문의 미완료 세션으로 재접속');
+assert.equal(resolveAuthEntry(unfinished,true),'onboarding','이번 방문의 소셜 로그인 성공');
+assert.equal(resolveAuthEntry({...unfinished,onboardingCompleted:true},false),'home','완료된 로그인 유지');
+assert.equal(resolveAuthEntry({...unfinished,onboardingCompleted:true},true),'home','기존 회원 로그인 성공');
+assert.equal(resolveAuthEntry(null,true),'login','로그아웃 뒤 세션 없음');
+console.log('PASS: first visit, saved incomplete session, fresh social login, completed session, logout');

@@ -35,3 +35,12 @@ export function createSocialAuthSession(
 export function removeLegacyLoginState() {
   persistenceStore.remove(LEGACY_LOGIN_KEY);
 }
+
+// An unfinished profile is not an entry screen on a later visit. Only a social
+// login completed during this visit can open onboarding; completed users retain
+// their existing login restoration behavior.
+export function resolveAuthEntry(session:AuthSession|null, authenticatedThisVisit:boolean):'login'|'onboarding'|'home' {
+  if(!session) return 'login';
+  if(session.onboardingCompleted) return 'home';
+  return authenticatedThisVisit ? 'onboarding' : 'login';
+}

@@ -68,6 +68,7 @@ import {
   AUTH_SESSION_KEY,
   createSocialAuthSession,
   getInitialAuthSession,
+  resolveAuthEntry,
   removeLegacyLoginState,
   type AuthSession,
 } from './services/authSession';
@@ -373,7 +374,8 @@ export default function App() {
     USER_PROFILES_BY_MEMBER_KEY,
     {},
   );
-  const isLoggedIn = authSession !== null;
+  const [authenticatedThisVisit, setAuthenticatedThisVisit] = useState(false);
+  const authEntry = resolveAuthEntry(authSession, authenticatedThisVisit);
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [activeTab, setActiveTab] = useNavigationState(pathTabs[pathname] ?? 'home');
   const [myMeetups, setMyMeetups] = usePersistentState('moeasy:myMeetups', meetups);
@@ -472,6 +474,7 @@ export default function App() {
     setOauthCallback({ status: 'loading' });
     void completeSocialLogin(provider, window.location.search)
       .then((result) => {
+        setAuthenticatedThisVisit(true);
         const storedProfile = userProfilesByMember[String(result.memberId)];
         setUserProfile(storedProfile ?? defaultUserProfile);
         setAuthSession({
@@ -539,6 +542,7 @@ export default function App() {
     try {
       await authApi.logout();
     } finally {
+      setAuthenticatedThisVisit(false);
       setAuthSession(null);
       navigateToTab('home');
     }
@@ -587,7 +591,7 @@ export default function App() {
 
   // Social login is the only entry point. New members continue to onboarding
   // according to the backend callback response.
-  if (!isLoggedIn) {
+  if (!authSession || authEntry === 'login') {
     return <LoginPage />;
   }
 

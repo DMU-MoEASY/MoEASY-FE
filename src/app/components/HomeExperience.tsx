@@ -15,6 +15,7 @@ type Meetup = {
 
 interface HomeExperienceProps {
   meetups: Meetup[];
+  serverMode?:boolean;
   onCreate: () => void;
   onSelect: (meetup: Meetup) => void;
   onOpenMap: () => void;
@@ -24,7 +25,7 @@ interface HomeExperienceProps {
 
 
 
-export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSchedule, onFinance }: HomeExperienceProps) {
+export function HomeExperience({ serverMode=false, meetups, onCreate, onSelect, onOpenMap, onSchedule, onFinance }: HomeExperienceProps) {
   const [showAll, setShowAll] = useState(false);
   const featured = showAll ? meetups : meetups.slice(0, 3);
   const [events] = usePersistentState<GlobalScheduleEvent[]>(globalScheduleKey, []);
@@ -36,7 +37,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSched
       <section className="relative overflow-hidden rounded-[28px] bg-[#101828] text-white ">
         <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_70%_25%,#4F7CFF_0,transparent_35%),radial-gradient(circle_at_25%_100%,#14B8A6_0,transparent_28%)]" />
         <div className="absolute inset-0 opacity-[0.07] bg-[linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] bg-[size:48px_48px]" />
-        <div className="relative grid h-full gap-8 p-6 sm:p-8 lg:grid-cols-[1.05fr_.95fr] lg:p-8">
+        <div className={`relative grid h-full gap-8 p-6 sm:p-8 lg:p-8 ${meetups[0] ? 'lg:grid-cols-[1.05fr_.95fr]' : 'lg:grid-cols-1'}`}>
           <div className="flex flex-col justify-between">
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
@@ -60,7 +61,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSched
             </div>
           </div>
 
-          <button disabled={!meetups[0]} onClick={event => meetups[0] && openMeetupFromCard(event.currentTarget, () => onSelect(meetups[0]!))} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 lg:p-4">
+          {meetups[0] && <button disabled={!meetups[0]} onClick={event => meetups[0] && openMeetupFromCard(event.currentTarget, () => onSelect(meetups[0]!))} className="group self-end rounded-[24px] border border-white/15 bg-white/10 p-3 text-left backdrop-blur-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 lg:p-4">
             <div data-meetup-cover className="relative h-40 overflow-hidden rounded-[18px] lg:h-40">
               <img src={meetupCover(meetups[0]?.id ?? 1)} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
@@ -72,13 +73,14 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSched
             </div>
             <div className="grid grid-cols-2 gap-3 px-1 pb-1 pt-4 text-xs text-white/70">
               <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#8FAAFF]" />{meetups[0]?.region ?? '활동 지역을 정해보세요'}</span>
-              <span className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#8FAAFF]" />멤버 {meetups[0]?.members ?? 0}명</span>
+              {!serverMode&&<span className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#8FAAFF]" />멤버 {meetups[0]?.members ?? 0}명</span>}
               <span className="col-span-2 flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8FAAFF]" />모임 홈으로 이동</span>
             </div>
-          </button>
+          </button>}
         </div>
       </section>
 
+      {serverMode&&<p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">이 기기에서 현재 계정으로 만든 모임을 표시합니다. 기존 가입 모임 목록은 연동 준비 중입니다.</p>}
       <section>
         <div className="mb-5 flex items-end justify-between">
           <div>
@@ -87,6 +89,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSched
           </div>
           {meetups.length > 3 && <button onClick={() => setShowAll(value => !value)} aria-expanded={showAll} className="flex min-h-11 items-center gap-1 text-sm font-medium text-primary">{showAll ? '접기' : `전체 ${meetups.length}개 보기`} <ArrowRight className="h-4 w-4" /></button>}
         </div>
+        {!featured.length&&<div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center"><h3 className="font-semibold">표시할 모임이 없어요</h3><p className="mt-2 text-sm text-muted-foreground">{serverMode?'직접 만든 모임은 이곳에서 다시 열 수 있어요.':'첫 모임을 만들어 사람들과 만나보세요.'}</p><button onClick={onCreate} className="mt-4 min-h-11 rounded-xl bg-primary px-5 py-3 text-sm text-white">새 모임 만들기</button></div>}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((meetup) => (
             <button key={meetup.id} onClick={event => openMeetupFromCard(event.currentTarget, () => onSelect(meetup))} className="group overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition hover:border-primary/35 hover:shadow-md">
@@ -100,7 +103,7 @@ export function HomeExperience({ meetups, onCreate, onSelect, onOpenMap, onSched
                 </div>
               </div>
               <div className="flex items-center justify-between p-4 text-sm">
-                <span className="flex items-center gap-2 text-muted-foreground"><Users className="h-4 w-4" />멤버 {meetup.members}명</span>
+                <span className="flex items-center gap-2 text-muted-foreground"><Users className="h-4 w-4" />{serverMode ? '내가 만든 모임' : `멤버 ${meetup.members}명`}</span>
                 <span className="font-medium text-primary">모임 홈 <ArrowRight className="ml-1 inline h-4 w-4" /></span>
               </div>
             </button>

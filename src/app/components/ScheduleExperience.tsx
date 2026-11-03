@@ -1,3 +1,4 @@
+import { isApiMode } from '../config/runtime';
 import { useState } from 'react';
 import { ArrowRight, CalendarDays, Check, Clock3, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -72,6 +73,7 @@ export function ScheduleExperience({ onOpenMap, onOpenPoll }: ScheduleExperience
   };
 
   return <div className="space-y-8 lg:space-y-10">
+    {isApiMode&&<p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">이 기기에 저장된 일정입니다. 다른 회원과의 일정 공유는 준비 중입니다.</p>}
     <div className="flex items-center justify-between"><h1 className="text-2xl font-semibold">내 일정</h1><button onClick={() => setCalendarOpen(value=>!value)} aria-expanded={calendarOpen} className="rounded-xl border border-border bg-card px-4 py-3 text-sm">{calendarOpen ? '다가오는 일정 보기' : '달력으로 보기'}</button></div>
     <section className={`${calendarOpen ? 'grid' : 'hidden'} gap-5 lg:grid-cols-[1fr_380px]`}>
       <div className="rounded-[28px] bg-[#101828] p-7 text-white sm:p-9">

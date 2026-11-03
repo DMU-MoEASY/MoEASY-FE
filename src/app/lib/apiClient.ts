@@ -1,3 +1,4 @@
+import { notifyAuthExpiry } from '../services/authExpiry';
 import { runtimeConfig } from '../config/runtime';
 
 export type ApiMeta = {
@@ -52,6 +53,7 @@ type CsrfResult = {
   headerName?: string;
 };
 
+let reissueRequest:Promise<void>|null=null;
 let csrfToken: string | null = null;
 let csrfHeaderName = 'X-XSRF-TOKEN';
 let csrfRequest: Promise<string> | null = null;
@@ -180,10 +182,16 @@ async function requestInternal<T>(
     }
 
     if (retry.auth && error.status === 401 && error.code === 'AUTH401_1' && path !== '/auth/reissue') {
-      await requestInternal<void>('/auth/reissue', { method: 'POST' }, { auth: false, csrf: true });
+      if(!reissueRequest) reissueRequest=requestInternal<void>('/auth/reissue', { method: 'POST' }, {auth:false,csrf:true}).finally(()=>{reissueRequest=null;});
+      try { await reissueRequest; }
+      catch(refreshError) {
+        if(refreshError instanceof ApiError && [401,403].includes(refreshError.status)) { clearCsrfToken();notifyAuthExpiry(); }
+        throw refreshError;
+      }
       return requestInternal<T>(path, options, { ...retry, auth: false });
     }
 
+    if(error.status===401 && path!=='/auth/reissue' && !path.startsWith('/auth/oauth/')) { clearCsrfToken();notifyAuthExpiry(); }
     throw error;
   }
 

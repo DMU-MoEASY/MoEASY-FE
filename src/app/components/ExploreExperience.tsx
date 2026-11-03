@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { MapPin, RotateCcw, Search, SlidersHorizontal, Users } from 'lucide-react';
 
 type Meetup = { id: number; name: string; region: string; description: string; members: number; category: string };
-interface ExploreExperienceProps { meetups: Meetup[]; onSelect: (meetup: Meetup) => void; }
+interface ExploreExperienceProps { unavailable?:boolean; meetups: Meetup[]; onSelect: (meetup: Meetup) => void; }
 
 const images = [
   'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=1200&q=85',
@@ -16,7 +16,7 @@ const images = [
 ];
 const categories = ['추천', '운동', '스터디', '문화', '음식', '취미', '게임'];
 
-export function ExploreExperience({ meetups, onSelect }: ExploreExperienceProps) {
+export function ExploreExperience({ unavailable=false, meetups, onSelect }: ExploreExperienceProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('추천');
   const [showFilters, setShowFilters] = useState(false);
@@ -33,6 +33,7 @@ export function ExploreExperience({ meetups, onSelect }: ExploreExperienceProps)
   }, [category, meetups, query, region]);
   const resetFilters = () => { setQuery(''); setCategory('추천'); setRegion('전체'); };
 
+  if(unavailable) return <section className="rounded-2xl border border-border bg-card p-6 sm:p-10"><h1 className="text-2xl font-semibold">모임 찾기</h1><p className="mt-4 text-sm leading-6 text-muted-foreground">실제 모임을 검색하는 기능을 준비하고 있어요. 장소를 찾으려면 모임 지도의 검색을 이용해주세요.</p></section>;
   return <div className="space-y-8 lg:space-y-10">
     <section className="pt-2 lg:pt-5">
       <div className="max-w-2xl"><p className="mb-2 text-sm text-muted-foreground">모임 찾기</p><h1 className="text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl lg:text-5xl">이번 주말,<br className="sm:hidden" /> 누구와 무엇을 해볼까요?</h1><p className="mt-4 text-muted-foreground">취향과 거리, 시간을 기준으로 나와 잘 맞는 모임을 찾아보세요.</p></div>

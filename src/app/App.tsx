@@ -1,30 +1,15 @@
+import { AsyncScreen } from './components/ScreenStates';
+import { subscribeAuthExpiry, resetAuthExpiry } from './services/authExpiry';
+import { visibleServerGroups } from './services/groupDataPolicy';
 import { DirectionalContent, ScreenEntrance, useScreenDirection } from './navigation/DirectionalContent';
-import { SchedulePollExperience } from './components/SchedulePollExperience';
 import { useNavigationState, navigateSmoothly } from './navigation/useNavigationState';
 import { useScrollMemory } from './navigation/useScrollMemory';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from './components/ui/dialog';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, useEffect, useRef, useState } from 'react';
 import { usePersistentState } from './hooks/usePersistentState';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { MapPage } from './components/MapPage';
 import { HomeExperience } from './components/HomeExperience';
-import { ExploreExperience } from './components/ExploreExperience';
-import { MeetupDetailExperience } from './components/MeetupDetailExperience';
-import { ScheduleExperience } from './components/ScheduleExperience';
-import { ProfileExperience } from './components/ProfileExperience';
-import {
-  NotificationsExperience,
-  MessagesExperience,
-  GalleryExperience,
-  RequestsExperience,
-  CreateMeetupExperience,
-  FinanceExperience,
-  MembersExperience,
-  ReceiptExperience,
-  SchedulerExperience,
-} from './components/SecondaryExperiences';
-import { GroupChatExperience } from './components/GroupChatExperience';
 import { SearchBar } from './components/SearchBar';
 import { MeetupCard } from './components/MeetupCard';
 import { ActiveMeetupCard } from './components/ActiveMeetupCard';
@@ -59,8 +44,6 @@ import { DMListPage } from './components/DMListPage';
 import { JoinMeetupModal } from './components/JoinMeetupModal';
 import { ReviewModal } from './components/ReviewModal';
 import { NotFoundPage } from './components/NotFoundPage';
-import { OnboardingPage } from './components/OnboardingPage';
-import { SettlementExperience } from './components/SettlementExperience';
 import { completeSocialLogin, getOAuthProviderFromPath } from './services/oauth';
 import { authApi, groupApi } from './services/p0Api';
 import { isApiMode } from './config/runtime';
@@ -81,6 +64,25 @@ import {
 } from './services/userProfile';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
+const SchedulePollExperience = lazy(() => import('./components/SchedulePollExperience').then(module=>({default:module.SchedulePollExperience})));
+const MapPage = lazy(() => import('./components/MapPage').then(module=>({default:module.MapPage})));
+const ExploreExperience = lazy(() => import('./components/ExploreExperience').then(module=>({default:module.ExploreExperience})));
+const MeetupDetailExperience = lazy(() => import('./components/MeetupDetailExperience').then(module=>({default:module.MeetupDetailExperience})));
+const ScheduleExperience = lazy(() => import('./components/ScheduleExperience').then(module=>({default:module.ScheduleExperience})));
+const ProfileExperience = lazy(() => import('./components/ProfileExperience').then(module=>({default:module.ProfileExperience})));
+const NotificationsExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.NotificationsExperience})));
+const MessagesExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.MessagesExperience})));
+const GalleryExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.GalleryExperience})));
+const RequestsExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.RequestsExperience})));
+const CreateMeetupExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.CreateMeetupExperience})));
+const FinanceExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.FinanceExperience})));
+const MembersExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.MembersExperience})));
+const ReceiptExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.ReceiptExperience})));
+const SchedulerExperience=lazy(()=>import('./components/SecondaryExperiences').then(module=>({default:module.SchedulerExperience})));
+const GroupChatExperience = lazy(() => import('./components/GroupChatExperience').then(module=>({default:module.GroupChatExperience})));
+const OnboardingPage=lazy(()=>import('./components/OnboardingPage').then(module=>({default:module.OnboardingPage})));
+const SettlementExperience = lazy(() => import('./components/SettlementExperience').then(module=>({default:module.SettlementExperience})));
+
 type Meetup = {
   id: number;
   name: string;
@@ -90,6 +92,8 @@ type Meetup = {
   tier: 'gold' | 'silver' | 'bronze';
   category: string;
   imageUrl: string;
+  source?: 'api';
+  ownerMemberId?: number;
 };
 
 const meetups: Meetup[] = [
@@ -375,11 +379,14 @@ export default function App() {
     {},
   );
   const [authenticatedThisVisit, setAuthenticatedThisVisit] = useState(false);
+  const [loginNotice,setLoginNotice] = useState('');
   const authEntry = resolveAuthEntry(authSession, authenticatedThisVisit);
   const [oauthCallback, setOauthCallback] = useState<{ status: 'idle' | 'loading' | 'error'; message?: string }>({ status: 'idle' });
   const [activeTab, setActiveTab] = useNavigationState(pathTabs[pathname] ?? 'home');
-  const [myMeetups, setMyMeetups] = usePersistentState('moeasy:myMeetups', meetups);
-  const [exploreMeetups, setExploreMeetups] = usePersistentState('moeasy:exploreMeetups', discoverMeetups);
+  const [storedMyMeetups, setMyMeetups] = usePersistentState<Meetup[]>(isApiMode ? `moeasy:server-groups:${authSession?.memberId ?? 'anonymous'}:joined` : 'moeasy:myMeetups', isApiMode ? [] : meetups);
+  const myMeetups = isApiMode ? visibleServerGroups(storedMyMeetups,authSession?.memberId) : storedMyMeetups;
+  const [storedExploreMeetups, setExploreMeetups] = usePersistentState<Meetup[]>(isApiMode ? `moeasy:server-groups:${authSession?.memberId ?? 'anonymous'}:explore` : 'moeasy:exploreMeetups', isApiMode ? [] : discoverMeetups);
+  const exploreMeetups = isApiMode ? visibleServerGroups(storedExploreMeetups,authSession?.memberId) : storedExploreMeetups;
   const [showScheduler, setShowScheduler] = useNavigationState(() => new URLSearchParams(window.location.search).get("view") === "scheduler");
   const [showMeetupDetail, setShowMeetupDetail] = useNavigationState(Boolean(initialMeetupId));
   const [showReceiptScanner, setShowReceiptScanner] = useNavigationState(() => new URLSearchParams(window.location.search).get("view") === "settlements");
@@ -398,13 +405,23 @@ export default function App() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedMeetup, setSelectedMeetup] = useState<Meetup>(
-    () => [...myMeetups, ...exploreMeetups].find(item => item.id === initialMeetupId) ?? myMeetups[0] ?? meetups[0]!,
+    () => [...myMeetups, ...exploreMeetups].find(item => item.id === initialMeetupId) ?? (isApiMode && initialMeetupId ? {...meetups[0]!,id:initialMeetupId,name:'모임',members:0} : myMeetups[0] ?? meetups[0]!),
   );
   const [joinTargetMeetup, setJoinTargetMeetup] = useState<Meetup>(discoverMeetups[0]!);
   const [reviewTargetEvent, setReviewTargetEvent] = useState({ title: '', id: '' });
   const [eventReviews, setEventReviews] = usePersistentState<Record<string, { rating: number; comment: string }>>('moeasy:eventReviews', {});
   const [detailTab, setDetailTab] = useState('홈');
   const [financeTab, setFinanceTab] = useState('입출금 내역');
+
+  useEffect(()=>subscribeAuthExpiry(()=>{
+    setAuthSession(null);setAuthenticatedThisVisit(false);
+    setLoginNotice('로그인이 만료됐어요. 소셜 계정으로 다시 로그인해주세요.');
+    setShowScheduler(false);setShowMeetupDetail(false);setShowReceiptScanner(false);
+    setShowMemberManagement(false);setShowFinanceManagement(false);setShowGroupChat(false);
+    setShowCreateMeetup(false);setShowJoinRequests(false);setShowPhotoGallery(false);
+    setShowNotifications(false);setShowDMList(false);setActiveTab('home');
+    window.history.replaceState({},'', '/');setPathname('/');
+  }),[setAuthSession]);
 
   useEffect(() => {
     const view = (showDMList && "messages") || (showNotifications && "notifications") || (showPhotoGallery && "gallery") || (showJoinRequests && "requests") || (showCreateMeetup && "create") || (showGroupChat && "chat") || (showFinanceManagement && "finance") || (showMemberManagement && "members") || (showReceiptScanner && "settlements") || (showScheduler && "scheduler") || '';
@@ -474,6 +491,7 @@ export default function App() {
     setOauthCallback({ status: 'loading' });
     void completeSocialLogin(provider, window.location.search)
       .then((result) => {
+        resetAuthExpiry();setLoginNotice('');
         setAuthenticatedThisVisit(true);
         const storedProfile = userProfilesByMember[String(result.memberId)];
         setUserProfile(storedProfile ?? defaultUserProfile);
@@ -508,6 +526,9 @@ export default function App() {
       const meetup = [...myMeetups, ...exploreMeetups].find(item => item.id === meetupId);
       if (meetup) {
         setSelectedMeetup(meetup);
+        setShowMeetupDetail(true);
+      } else if(isApiMode) {
+        setSelectedMeetup({...meetups[0]!,id:meetupId,name:'모임',members:0,source:'api'});
         setShowMeetupDetail(true);
       } else {
         setShowMeetupDetail(false);
@@ -592,7 +613,7 @@ export default function App() {
   // Social login is the only entry point. New members continue to onboarding
   // according to the backend callback response.
   if (!authSession || authEntry === 'login') {
-    return <LoginPage />;
+    return <LoginPage notice={loginNotice}/>;
   }
 
   if (!authSession.onboardingCompleted) {
@@ -613,7 +634,7 @@ export default function App() {
   const routeMeetupExists = meetupRouteMatch
     ? [...myMeetups, ...exploreMeetups].some(item => item.id === Number(meetupRouteMatch[1]))
     : false;
-  const isRouteNotFound = !pathTabs[pathname] && (!meetupRouteMatch || !routeMeetupExists);
+  const isRouteNotFound = !pathTabs[pathname] && (!meetupRouteMatch || (!isApiMode && !routeMeetupExists));
 
   if (isRouteNotFound) {
     return <NotFoundPage onHome={() => navigateToTab('home')} />;
@@ -621,7 +642,7 @@ export default function App() {
 
   if (showPhotoGallery) {
     return (
-      <ScreenEntrance direction={screenDirection}><GalleryExperience
+      <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><GalleryExperience
         onBack={() => {
           setShowPhotoGallery(false);
           setShowMeetupDetail(true);
@@ -633,7 +654,7 @@ export default function App() {
 
   if (showJoinRequests) {
     return (
-      <ScreenEntrance direction={screenDirection}><RequestsExperience
+      <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><RequestsExperience
         meetupId={selectedMeetup.id}
         onBack={() => {
           setShowJoinRequests(false);
@@ -645,7 +666,7 @@ export default function App() {
   }
 
   if (showCreateMeetup) {
-    return <ScreenEntrance direction={screenDirection}><CreateMeetupExperience onBack={() => setShowCreateMeetup(false)} onCreate={async (values) => {
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><CreateMeetupExperience onBack={() => setShowCreateMeetup(false)} onCreate={async (values) => {
       const created = isApiMode
         ? await groupApi.create({
           name: values.name,
@@ -667,6 +688,7 @@ export default function App() {
         tier: 'bronze' as const,
         category: values.category,
         imageUrl: '/meetup-new.jpg',
+        ...(isApiMode ? {source:'api' as const,ownerMemberId:authSession.memberId} : {}),
       };
       setMyMeetups(current => [createdMeetup, ...current]);
       setExploreMeetups(current => [createdMeetup, ...current]);
@@ -677,7 +699,7 @@ export default function App() {
   }
 
   if (showGroupChat) {
-    return <ScreenEntrance direction={screenDirection}><GroupChatExperience
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><GroupChatExperience
       meetupId={selectedMeetup.id}
       meetupName={selectedMeetup.name}
       memberCount={selectedMeetup.members}
@@ -724,7 +746,7 @@ export default function App() {
   }
 
   if (showFinanceManagement) {
-    return <ScreenEntrance direction={screenDirection}><FinanceExperience
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><FinanceExperience
       meetupId={selectedMeetup.id}
       meetupName={selectedMeetup.name}
       onBack={() => {
@@ -823,7 +845,7 @@ export default function App() {
   }
 
   if (showMemberManagement) {
-    return <ScreenEntrance direction={screenDirection}><MembersExperience onBack={() => {
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><MembersExperience onBack={() => {
       setShowMemberManagement(false);
       setShowMeetupDetail(true);
     }} /></ScreenEntrance>;
@@ -857,7 +879,7 @@ export default function App() {
   }
 
   if (showReceiptScanner) {
-    return <ScreenEntrance direction={screenDirection}><SettlementExperience meetupId={selectedMeetup.id} meetupName={selectedMeetup.name} initialCreate onBack={() => {
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><SettlementExperience meetupId={selectedMeetup.id} meetupName={selectedMeetup.name} initialCreate onBack={() => {
       setShowReceiptScanner(false);
       setShowFinanceManagement(true);
     }} /></ScreenEntrance>;
@@ -911,7 +933,7 @@ export default function App() {
 
   if (showMeetupDetail && !showScheduler) {
     return (
-      <ScreenEntrance direction={screenDirection}><MeetupDetailExperience
+      <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><MeetupDetailExperience
         key={selectedMeetup.id}
         meetup={selectedMeetup}
         activeTab={detailTab}
@@ -1321,7 +1343,7 @@ export default function App() {
   }
 
   if (showScheduler) {
-    return <ScreenEntrance direction={screenDirection}><SchedulePollExperience key={`${selectedMeetup.id}:${pollScheduleId ?? "list"}`} meetupId={selectedMeetup.id} meetupName={selectedMeetup.name} initialScheduleId={pollScheduleId} onBack={() => {
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><SchedulePollExperience key={`${selectedMeetup.id}:${pollScheduleId ?? "list"}`} meetupId={selectedMeetup.id} meetupName={selectedMeetup.name} initialScheduleId={pollScheduleId} onBack={() => {
       setDetailTab("일정");
       const url = new URL(window.location.href); url.searchParams.delete("schedule"); window.history.replaceState(window.history.state,"",url.pathname+url.search);
       setShowScheduler(false);
@@ -1425,6 +1447,7 @@ export default function App() {
         <DirectionalContent screen={activeTab} order={['home','search','map','schedule','profile']} className="space-y-4">
           {activeTab === 'home' && (
             <HomeExperience
+              serverMode={isApiMode}
               meetups={myMeetups}
               onSchedule={() => navigateToTab('schedule')}
               onFinance={item => { const meetup = myMeetups.find(candidate => candidate.id === item.id); if (meetup) { openMeetup(meetup); setShowFinanceManagement(true); } }}
@@ -1548,6 +1571,7 @@ export default function App() {
 
           {activeTab === 'search' && (
             <ExploreExperience
+              unavailable={isApiMode}
               meetups={exploreMeetups}
               onSelect={(item) => {
                 const meetup = exploreMeetups.find(candidate => candidate.id === item.id);
@@ -1892,11 +1916,11 @@ export default function App() {
       <Dialog open={showNotifications || showDMList} onOpenChange={open => { if (!open) closeNavigationPanel(); }}>
         <DialogContent className="navigation-panel inset-y-0 left-auto right-0 flex h-dvh w-full max-w-full translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none border-y-0 p-0 sm:max-w-xl">
           <DialogTitle className="sr-only">{panelKind.current === 'notifications' ? '알림' : '모임 대화'}</DialogTitle><DialogDescription className="sr-only">확인 후 닫으면 이전 화면으로 돌아갑니다.</DialogDescription>
-          {panelKind.current === 'notifications' ? <NotificationsExperience onBack={closeNavigationPanel}/> : <MessagesExperience meetups={myMeetups} onBack={closeNavigationPanel} onChat={meetupId => {
+          <AsyncScreen screenKey={panelKind.current}>{panelKind.current === 'notifications' ? <NotificationsExperience onBack={closeNavigationPanel}/> : <MessagesExperience meetups={myMeetups} onBack={closeNavigationPanel} onChat={meetupId => {
             const target = myMeetups.find(item => item.id === meetupId);
             if (!target) return;
             setSelectedMeetup(target); changePath(`/meetups/${target.id}?view=chat`, {fromMessages:true}); setShowDMList(false); setShowMeetupDetail(true); setShowGroupChat(true);
-          }}/>}
+          }}/>}</AsyncScreen>
         </DialogContent>
       </Dialog>
       <BottomNav activeTab={activeTab} onTabChange={navigateToTab} />

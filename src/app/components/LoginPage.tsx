@@ -3,7 +3,7 @@ import { CalendarDays, LoaderCircle, MapPin, ShieldCheck, Sparkles, Users } from
 import { beginSocialLogin } from '../services/oauth';
 import type { SocialProvider } from '../services/p0Api';
 
-export function LoginPage() {
+export function LoginPage({notice}:{notice?:string}) {
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [loginError, setLoginError] = useState('');
 
@@ -30,7 +30,7 @@ export function LoginPage() {
             <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.05em] xl:text-6xl">좋아하는 일을,<br />좋아할 사람들과.</h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-white/70">새로운 모임을 발견하고 일정과 장소를 정하고, 함께한 순간까지 오래 간직하세요.</p>
             <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-              <Stat icon={<Users />} value="12.4K" label="활동 멤버" /><Stat icon={<MapPin />} value="840" label="주변 모임" /><Stat icon={<CalendarDays />} value="2.1K" label="이번 주 일정" />
+              <Stat icon={<Users />} value="모임" label="함께할 사람들" /><Stat icon={<MapPin />} value="지도" label="장소 검색" /><Stat icon={<CalendarDays />} value="정산" label="함께 쓴 비용" />
             </div>
           </div>
         </section>
@@ -41,6 +41,7 @@ export function LoginPage() {
             <p className="text-sm font-semibold text-primary">WELCOME TO MOEASY</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">소셜 계정으로 시작해요.</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">처음 방문했다면 로그인 후 간단한 프로필 설정이 이어져요.</p>
+            {notice&&<p role="status" className="mt-5 rounded-xl bg-blue-50 p-4 text-sm text-blue-800">{notice}</p>}
             <div className="mt-9 space-y-3">
               <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('KAKAO')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] px-4 py-4 text-sm font-semibold text-[#181600] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'KAKAO' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-[#FEE500]">K</span>}카카오로 로그인</button>
               <button disabled={socialLoading !== null} onClick={() => void startSocialLogin('GOOGLE')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-4 text-sm font-semibold ring-1 ring-black/10 transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">{socialLoading === 'GOOGLE' ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <span className="font-bold text-[#4285F4]">G</span>}Google로 로그인</button>

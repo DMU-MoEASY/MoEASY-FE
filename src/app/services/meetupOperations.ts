@@ -1,3 +1,4 @@
+import { isApiMode } from '../config/runtime';
 import type { SchedulePoll } from './schedulePollRules';
 import { persistenceStore } from '../lib/persistence';
 
@@ -79,19 +80,19 @@ export type DuesManagementState = {
   transfers?: TransferRecord[];
 };
 
-export const INITIAL_CLUB_SCHEDULES: ClubSchedule[] = [
+export const INITIAL_CLUB_SCHEDULES: ClubSchedule[] = isApiMode ? [] : [
   { id: 1, date: '9월 9일 화요일', dateValue: '2026-09-09', title: '주간 정기 모임', time: '19:30', place: '반포 한강공원', attending: true },
   { id: 2, date: '9월 14일 월요일', dateValue: '2026-09-14', title: '주말 특별 모임', time: '07:00', place: '올림픽공원', attending: false },
   { id: 3, date: '9월 20일 일요일', dateValue: '2026-09-20', title: '신입 멤버 환영회', time: '18:00', place: '강남역 11번 출구', attending: true },
 ];
 
-export const INITIAL_GLOBAL_SCHEDULES: GlobalScheduleEvent[] = [
+export const INITIAL_GLOBAL_SCHEDULES: GlobalScheduleEvent[] = isApiMode ? [] : [
   { id: 1, dateValue: '2026-09-09', day: '09', dow: '수', title: '주간 러닝 모임', group: '강남 러닝 크루', time: '19:30', place: '반포 한강공원', color: 'bg-blue-500', attending: true },
   { id: 2, dateValue: '2026-09-12', day: '12', dow: '토', title: '프론트엔드 아키텍처', group: '판교 개발자 스터디', time: '20:00', place: '스타트업캠퍼스', color: 'bg-violet-500', attending: true },
   { id: 3, dateValue: '2026-09-14', day: '14', dow: '월', title: '초보자 백운대 코스', group: '북한산 등산 클럽', time: '08:00', place: '북한산 우이역', color: 'bg-emerald-500', attending: true },
 ];
 
-export const INITIAL_DUES_STATE: DuesManagementState = {
+export const INITIAL_DUES_STATE: DuesManagementState = isApiMode ? {title:'모임 회비',amount:0,dueDate:'',account:'',members:[],settlements:[],transfers:[]} : {
   title: '9월 정기 회비',
   amount: 15000,
   dueDate: '2026-09-30',

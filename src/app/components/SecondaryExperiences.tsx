@@ -4,7 +4,8 @@ import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clo
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
-import { SettlementExperience } from './SettlementExperience';
+import { lazy } from 'react';
+const SettlementExperience = lazy(()=>import('./SettlementExperience').then(module=>({default:module.SettlementExperience})));
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
 import { persistenceStore } from '../lib/persistence';
@@ -23,7 +24,7 @@ function PageFrame({ eyebrow, title, description, onBack, action, children, dark
   return <div className="min-h-screen bg-background">
     <header className={`sticky top-0 z-50 border-b ${dark ? 'border-white/10 bg-[#101828]/90 text-white' : 'border-border bg-background/90'} backdrop-blur-xl`}>
       <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-4 sm:px-6">
-        <button onClick={onBack} className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm ${dark ? 'hover:bg-white/10' : 'hover:bg-card'}`}><ArrowLeft className="h-5 w-5" /><span className="hidden sm:inline">돌아가기</span></button>{action}
+        <button aria-label="돌아가기" onClick={onBack} className={`flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-sm ${dark ? 'hover:bg-white/10' : 'hover:bg-card'}`}><ArrowLeft className="h-5 w-5" /><span className="hidden sm:inline">돌아가기</span></button>{action}
       </div>
     </header>
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
@@ -43,6 +44,7 @@ export function NotificationsExperience({ onBack }: { onBack: () => void }) {
     [5, '가입 신청이 승인됐어요', '강남 러닝 크루에 오신 것을 환영합니다.', '2일 전', 'bg-sky-100 text-sky-700', <UserCheck />],
     [6, '새 댓글이 달렸어요', '김철수님이 회원님의 게시글에 댓글을 남겼습니다.', '2일 전', 'bg-slate-100 text-slate-700', <MessageCircle />],
   ] as const;
+  if(isApiMode) return <PageFrame eyebrow="알림" title="새로운 소식" onBack={onBack}><p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">알림 기능을 준비하고 있어요. 실제 모임 알림은 연동 후 확인할 수 있습니다.</p></PageFrame>;
   const unread = items.length - read.length;
   return <PageFrame eyebrow="알림" title="새로운 소식" description={`확인하지 않은 알림이 ${unread}개 있어요.`} onBack={onBack} action={unread > 0 ? <button onClick={() => setRead(items.map(i => i[0]))} className="flex items-center gap-2 rounded-full bg-[#101828] px-4 py-2.5 text-xs font-semibold text-white"><CheckCheck className="h-4 w-4" />모두 읽음</button> : undefined}>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -62,6 +64,7 @@ export function MessagesExperience({ onBack, onChat, meetups }: { onBack: () => 
 }
 
 export function GalleryExperience({ onBack, name }: { onBack: () => void; name: string }) {
+  if(isApiMode) return <PageFrame eyebrow="사진첩" title="모임 사진" onBack={onBack}><p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">모임 사진 공유는 준비 중입니다.</p></PageFrame>;
   const photos = ['photo-1530137073520-4ea6e2f10a48','photo-1529156069898-49953e39b3ac','photo-1552674605-db6ffd4facb5','photo-1500530855697-b586d89ba3ee','photo-1511632765486-a01980e01a18','photo-1521737711867-e3b97375f902'];
   return <PageFrame eyebrow="Gallery" title="지난 순간들" description={`${name} 멤버들이 함께 남긴 기록입니다.`} onBack={onBack} action={<button className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Camera className="h-4 w-4"/>사진 올리기</button>}>
     <div className="grid auto-rows-[180px] grid-cols-2 gap-3 sm:auto-rows-[260px] lg:grid-cols-3">{photos.map((photo,index)=><button key={photo} className={`group relative overflow-hidden rounded-[20px] ${index===0?'col-span-2 row-span-2 lg:col-span-2':''}`}><img src={`https://images.unsplash.com/${photo}?auto=format&fit=crop&w=1200&q=85`} alt="모임 활동" className="h-full w-full object-cover transition duration-500 group-hover:scale-105"/><span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>)}</div>
@@ -271,7 +274,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
   };
 
   if (showSettlements) return <SettlementExperience meetupId={meetupId} meetupName={meetupName} onBack={() => { setDues(persistenceStore.read<DuesManagementState>(meetupFinanceKey(meetupId)) ?? INITIAL_DUES_STATE); setShowSettlements(false); }} />;
-  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={`${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
+  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={isApiMode ? `${meetupName}의 이 기기 내 회비 기록입니다. 실제 납부 확인이나 문자 발송은 연동되지 않았습니다.` : `${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-2xl border border-border bg-card p-6 sm:col-span-2"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">이번 회비 모금액</p><strong className="mt-2 block text-3xl tracking-tight">{collectedAmount.toLocaleString('ko-KR')}원</strong></div><span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">목표 {expectedAmount.toLocaleString('ko-KR')}원</span></div><div className="mt-7 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>{dues.title}</span><b className="text-foreground">{progress}% 달성</b></div></div>
       <div className="rounded-2xl border border-border bg-card p-6"><CreditCard className="h-5 w-5 text-slate-500"/><strong className="mt-8 block text-2xl">{paidMembers.length} / {dues.members.length}</strong><p className="mt-1 text-sm text-muted-foreground">납부 완료</p></div>
@@ -310,6 +313,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
 }
 
 export function MembersExperience({ onBack }: { onBack: () => void }) {
+  if(isApiMode) return <PageFrame eyebrow="멤버" title="모임 멤버" onBack={onBack}><p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">실제 회원 목록은 연동 준비 중입니다. 가입 신청은 가입 신청 관리에서 확인해주세요.</p></PageFrame>;
   const members=[['김모이지','모임장','ME'],['김철수','운영진','CH'],['이영희','멤버','YH'],['박민수','멤버','MS'],['최수진','멤버','SJ']];
   return <PageFrame eyebrow="운영진 도구" title="멤버 관리" description="역할과 가입 상태를 관리하고 모임 구성원을 확인하세요." onBack={onBack} action={<button className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Plus className="h-4 w-4"/>멤버 초대</button>}>
     <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border bg-card p-3"><Search className="ml-2 h-4 w-4 text-muted-foreground"/><input className="flex-1 bg-transparent py-2 text-sm outline-none" placeholder="이름으로 검색"/><span className="rounded-md bg-secondary px-3 py-1 text-xs text-muted-foreground">145명</span></div><div className="overflow-hidden rounded-2xl border border-border bg-card">{members.map(([name,role],index)=><article key={name} className={`flex items-center gap-3 p-4 ${index < members.length - 1 ? 'border-b border-border' : ''}`}><UserAvatar name={name} className="h-11 w-11" textClassName="text-[10px]"/><div className="flex-1"><h3 className="font-semibold">{name}</h3><p className="mt-1 text-xs text-muted-foreground">{role} · 최근 활동 오늘</p></div><button className="rounded-full p-2 hover:bg-secondary"><MoreHorizontal className="h-4 w-4"/></button></article>)}</div>

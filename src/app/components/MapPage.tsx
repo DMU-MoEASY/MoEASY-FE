@@ -1,3 +1,4 @@
+import { isApiMode } from '../config/runtime';
 import { markerSymbols, markerSymbol, markerSymbolPreview } from '../lib/markerSymbols';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
@@ -21,7 +22,7 @@ type MapItem = {
   groupKey?: string;
 };
 
-const nearbyMeetups: MapItem[] = [
+const nearbyMeetups: MapItem[] = isApiMode ? [] : [
   { id: 'nearby-1', title: '퇴근 후 한강 러닝', place: '반포 한강공원', meta: '오늘 19:30', people: '5/8명', lat: 37.5108, lng: 126.9957, source: 'moeasy' },
   { id: 'nearby-2', title: '성수 카페 번개', place: '서울숲 4번 출구', meta: '오늘 20:00', people: '3/6명', lat: 37.5445, lng: 127.0374, source: 'moeasy' },
   { id: 'nearby-3', title: '저녁 보드게임', place: '강남역 11번 출구', meta: '내일 18:30', people: '4/8명', lat: 37.4981, lng: 127.0276, source: 'moeasy' },
@@ -59,7 +60,7 @@ export function MapPage({ userId = 'local', onOpenSchedule }: { userId?: string 
   const [listOpen, setListOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MapItem[]>([]);
-  const [selectedId, setSelectedId] = useState(nearbyMeetups[0]!.id);
+  const [selectedId, setSelectedId] = useState(nearbyMeetups[0]?.id ?? '');
   const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle');
   const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -136,7 +137,7 @@ export function MapPage({ userId = 'local', onOpenSchedule }: { userId?: string 
     setSearchResults([]);
     setQuery('');
     setSearchStatus('idle');
-    setSelectedId(nextMode === 'nearby' ? nearbyMeetups[0]!.id : resolved[0]?.id ?? '');
+    setSelectedId(nextMode === 'nearby' ? nearbyMeetups[0]?.id ?? '' : resolved[0]?.id ?? '');
   };
 
   const searchPlaces = async (event: FormEvent) => {
@@ -256,7 +257,7 @@ export function MapPage({ userId = 'local', onOpenSchedule }: { userId?: string 
             <h2 className="mt-2 text-xl font-semibold">{searchResults.length ? `'${query}' 검색 결과` : mode === 'nearby' ? '주변 번개 모임' : '내 일정 장소'}</h2>
             <p className="mt-1 text-sm text-slate-400">총 {items.length}개의 장소</p>
           </div>
-          <div className="space-y-2 p-3">{items.map(item => <button key={item.id} type="button" onClick={() => selectItem(item)} className={`w-full rounded-2xl text-left transition-colors ${item.id === selected?.id ? 'bg-white text-[#101828]' : 'text-white hover:bg-white/[0.06]'}`}><LocationCard item={item} /></button>)}</div>
+          <div className="space-y-2 p-3">{items.length===0&&<p className="p-4 text-sm text-slate-300">{searchStatus==='empty'?'검색 결과가 없습니다. 다른 장소명으로 검색해주세요.':mode==='nearby'?'주변 모임 목록은 준비 중입니다. 장소 검색을 이용해주세요.':'표시할 일정 장소가 없습니다.'}</p>}{items.map(item => <button key={item.id} type="button" onClick={() => selectItem(item)} className={`w-full rounded-2xl text-left transition-colors ${item.id === selected?.id ? 'bg-white text-[#101828]' : 'text-white hover:bg-white/[0.06]'}`}><LocationCard item={item} /></button>)}</div>
         </aside>
       </div>
 

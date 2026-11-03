@@ -1,3 +1,4 @@
+import { isApiMode } from '../config/runtime';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -16,7 +17,8 @@ import {
 } from 'lucide-react';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
-import { SettlementExperience } from './SettlementExperience';
+import { lazy } from 'react';
+const SettlementExperience = lazy(()=>import('./SettlementExperience').then(module=>({default:module.SettlementExperience})));
 import {
   linkScheduleFromChat,
   linkTransferFromChat,
@@ -157,7 +159,7 @@ export function GroupChatExperience({
   currentUserName: string;
   onBack: () => void;
 }) {
-  const [messages, setMessages] = usePersistentState<ChatItem[]>(meetupChatKey(meetupId), createInitialMessages(meetupName));
+  const [messages, setMessages] = usePersistentState<ChatItem[]>(meetupChatKey(meetupId), isApiMode ? [] : createInitialMessages(meetupName));
   const [message, setMessage] = usePersistentState(`moeasy:chat-draft:${meetupId}`, '');
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>(null);
@@ -324,7 +326,7 @@ export function GroupChatExperience({
       <div className="mx-auto flex h-[72px] max-w-3xl items-center gap-2 px-3 sm:px-5">
         <button onClick={onBack} aria-label={window.history.state?.fromMessages ? "대화 목록으로 돌아가기" : "모임으로 돌아가기"} className="rounded-full p-2.5 text-slate-700 hover:bg-slate-100"><ArrowLeft className="h-5 w-5"/></button>
         <UserAvatar name={meetupName} className="h-10 w-10" textClassName="text-[11px]"/>
-        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-semibold text-slate-950">{meetupName}</h1><p className="mt-0.5 text-[11px] text-slate-500">멤버 {memberCount}명</p></div>
+        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-semibold text-slate-950">{meetupName}</h1><p className="mt-0.5 text-[11px] text-slate-500">{isApiMode ? '이 기기의 대화 기록' : `멤버 ${memberCount}명`}</p></div>
         <button aria-label="채팅 검색" className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100"><Search className="h-5 w-5"/></button>
         <button aria-label="채팅방 메뉴" className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100"><MoreHorizontal className="h-5 w-5"/></button>
       </div>

@@ -13,6 +13,17 @@ function prepareImage(image: HTMLImageElement | null) {
   });
 }
 
+function waitForHero() {
+  const current=document.querySelector<HTMLImageElement>('[data-meetup-hero]');
+  if(current)return Promise.resolve(current);
+  return new Promise<HTMLImageElement|null>(resolve=>{
+    const finish=(image:HTMLImageElement|null)=>{observer.disconnect();window.clearTimeout(timeout);resolve(image);};
+    const observer=new MutationObserver(()=>{const image=document.querySelector<HTMLImageElement>('[data-meetup-hero]');if(image)finish(image);});
+    const timeout=window.setTimeout(()=>finish(null),250);
+    observer.observe(document.body,{childList:true,subtree:true});
+  });
+}
+
 export async function openMeetupFromCard(card: HTMLElement, navigate: () => void) {
   const cover = card.querySelector<HTMLImageElement>('[data-meetup-cover] img');
   if (!cover || !document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -24,6 +35,7 @@ export async function openMeetupFromCard(card: HTMLElement, navigate: () => void
   const previousRootName = document.documentElement.style.viewTransitionName;
   try {
     await prepareImage(cover);
+    try { await import('../components/MeetupDetailExperience'); } catch { navigate();return; }
     if (!card.isConnected) return;
     document.documentElement.style.viewTransitionName = 'moeasy-page-background';
     cover.style.viewTransitionName = 'moeasy-meetup-cover';
@@ -32,7 +44,7 @@ export async function openMeetupFromCard(card: HTMLElement, navigate: () => void
       // Flush route state, then allow the newly mounted hero and scroll position
       // to settle before capturing the destination, including on the first visit.
       await new Promise<void>(resolve => queueMicrotask(resolve));
-      await prepareImage(document.querySelector<HTMLImageElement>('[data-meetup-hero]'));
+      await prepareImage(await waitForHero());
     });
     void transition.ready.catch(error => {
       if (import.meta.env.DEV) console.warn('모임 화면 전환이 생략되었습니다.', error);

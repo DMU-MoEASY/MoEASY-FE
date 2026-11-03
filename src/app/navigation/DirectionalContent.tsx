@@ -1,3 +1,4 @@
+import { AsyncScreen } from '../components/ScreenStates';
 import { useState, type ReactNode } from 'react';
 import { AnimatePresence, LazyMotion, domAnimation, m as motion, useReducedMotion } from 'motion/react';
 
@@ -16,13 +17,13 @@ export function DirectionalContent({screen, order, children, className = ''}: {s
       enter:(direction:number)=>({opacity:0,x:reduce?0:direction*28,scale:reduce?1:0.992}),
       visible:{opacity:1,x:0,scale:1},
       leave:(direction:number)=>({opacity:0,x:reduce?0:-direction*20,scale:reduce?1:0.992,pointerEvents:'none' as const}),
-    }} initial="enter" animate="visible" exit="leave" transition={{duration:reduce?0:0.2,ease:[0.22,1,0.36,1]}} className={className}>{children}</motion.div>
+    }} initial="enter" animate="visible" exit="leave" transition={{duration:reduce?0:0.2,ease:[0.22,1,0.36,1]}} className={className}><AsyncScreen screenKey={screen}>{children}</AsyncScreen></motion.div>
   </AnimatePresence></div></LazyMotion>;
 }
 
-export function ScreenEntrance({children,direction}:{children:ReactNode;direction:number}) {
+export function ScreenEntrance({children,direction,screenKey}:{children:ReactNode;direction:number;screenKey?:string}) {
   const reduce = useReducedMotion() || !!document.documentElement.dataset.meetupTransition;
-  return <LazyMotion features={domAnimation}><motion.div initial={{opacity:reduce?1:0.7,x:reduce?0:direction*24,scale:reduce?1:0.996}} animate={{opacity:1,x:0,scale:1}} transition={{duration:reduce?0:0.2,ease:[0.22,1,0.36,1]}}>{children}</motion.div></LazyMotion>;
+  return <LazyMotion features={domAnimation}><motion.div initial={{opacity:reduce?1:0.7,x:reduce?0:direction*24,scale:reduce?1:0.996}} animate={{opacity:1,x:0,scale:1}} transition={{duration:reduce?0:0.2,ease:[0.22,1,0.36,1]}}><AsyncScreen screenKey={screenKey}>{children}</AsyncScreen></motion.div></LazyMotion>;
 }
 
 export function useScreenDirection(screen:string,depth:number) {

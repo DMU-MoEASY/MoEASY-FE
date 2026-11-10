@@ -1,3 +1,4 @@
+import { useOwnMemberNickname } from './hooks/useOwnMemberNickname';
 import { AsyncScreen } from './components/ScreenStates';
 import { subscribeAuthExpiry, resetAuthExpiry } from './services/authExpiry';
 import { visibleServerGroups } from './services/groupDataPolicy';
@@ -57,6 +58,8 @@ import {
 } from './services/authSession';
 import {
   defaultUserProfile,
+  emptyUserProfile,
+  memberProfile,
   USER_PROFILE_KEY,
   USER_PROFILES_BY_MEMBER_KEY,
   type UserProfile,
@@ -375,7 +378,7 @@ export default function App() {
   const oauthHandledPath = useRef<string | null>(null);
   const initialMeetupId = Number(pathname.match(/^\/meetups\/(\d+)$/)?.[1]);
   const [authSession, setAuthSession] = usePersistentState<AuthSession | null>(AUTH_SESSION_KEY, getInitialAuthSession());
-  const [userProfile, setUserProfile] = usePersistentState<UserProfile>(USER_PROFILE_KEY, defaultUserProfile);
+  const [userProfile, setUserProfile] = usePersistentState<UserProfile>(USER_PROFILE_KEY, isApiMode ? emptyUserProfile : defaultUserProfile);
   const [userProfilesByMember, setUserProfilesByMember] = usePersistentState<UserProfilesByMember>(
     USER_PROFILES_BY_MEMBER_KEY,
     {},
@@ -387,6 +390,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useNavigationState(pathTabs[pathname] ?? 'home');
   const [storedMyMeetups, setMyMeetups] = usePersistentState<Meetup[]>(isApiMode ? `moeasy:server-groups:${authSession?.memberId ?? 'anonymous'}:joined` : 'moeasy:myMeetups', isApiMode ? [] : meetups);
   const myMeetups = isApiMode ? visibleServerGroups(storedMyMeetups,authSession?.memberId) : storedMyMeetups;
+  const scopedProfile = isApiMode ? (authSession ? memberProfile(userProfilesByMember,authSession.memberId) : undefined) ?? emptyUserProfile : userProfile;
+  const ownNickname = useOwnMemberNickname(authSession?.memberId,myMeetups.map(item=>item.id),isApiMode&&authEntry==='home');
+  const displayedProfile = ownNickname.nickname ? {...scopedProfile,nickname:ownNickname.nickname} : scopedProfile;
   const [storedExploreMeetups, setExploreMeetups] = usePersistentState<Meetup[]>(isApiMode ? `moeasy:server-groups:${authSession?.memberId ?? 'anonymous'}:explore` : 'moeasy:exploreMeetups', isApiMode ? [] : discoverMeetups);
   const exploreMeetups = isApiMode ? visibleServerGroups(storedExploreMeetups,authSession?.memberId) : storedExploreMeetups;
   const [showScheduler, setShowScheduler] = useNavigationState(() => new URLSearchParams(window.location.search).get("view") === "scheduler");
@@ -464,25 +470,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!authSession) return;
-
-    const memberKey = String(authSession.memberId);
-    const storedProfile = userProfilesByMember[memberKey];
-
-    if (storedProfile) {
-      setUserProfile(storedProfile);
-      return;
-    }
-
-    // Preserve the legacy single-profile value for users who completed
-    // onboarding before member-scoped persistence was introduced.
-    if (authSession.onboardingCompleted) {
-      setUserProfilesByMember((current) => ({
-        ...current,
-        [memberKey]: userProfile,
-      }));
-    }
-  }, [authSession, setUserProfile, setUserProfilesByMember, userProfile, userProfilesByMember]);
+    if (!isApiMode || !authSession) return;
+    // Never migrate the shared legacy profile into an authenticated account.
+    const profile=memberProfile(userProfilesByMember,authSession.memberId) ?? emptyUserProfile;
+    setUserProfile(ownNickname.nickname ? {...profile,nickname:ownNickname.nickname} : profile);
+  }, [authSession, setUserProfile, userProfilesByMember, ownNickname.nickname]);
 
   useEffect(() => {
     const provider = getOAuthProviderFromPath(pathname);
@@ -495,8 +487,8 @@ export default function App() {
       .then((result) => {
         resetAuthExpiry();setLoginNotice('');
         setAuthenticatedThisVisit(true);
-        const storedProfile = userProfilesByMember[String(result.memberId)];
-        setUserProfile(storedProfile ?? defaultUserProfile);
+        const storedProfile = memberProfile(userProfilesByMember,result.memberId);
+        setUserProfile(storedProfile ?? (isApiMode ? emptyUserProfile : defaultUserProfile));
         setAuthSession({
           ...createSocialAuthSession(provider, result),
           onboardingCompleted: result.onboardingCompleted || Boolean(storedProfile),
@@ -571,8 +563,8 @@ export default function App() {
     }
   };
 
-  const currentUserName = userProfile.nickname?.trim()
-    || `회원 ${authSession?.memberId ?? ''}`.trim();
+  const currentUserName = displayedProfile.nickname?.trim()
+    || `회원 #${authSession?.memberId ?? ''}`.trim();
 
   const openMeetup = (meetup: Meetup) => navigateSmoothly(() => {
     setSelectedMeetup(meetup);
@@ -621,7 +613,7 @@ export default function App() {
   if (!authSession.onboardingCompleted) {
     return (
       <OnboardingPage
-        initialProfile={userProfile}
+        initialProfile={scopedProfile}
         onComplete={(profile) => {
           persistProfileForCurrentMember(profile);
           setAuthSession((current) => current ? { ...current, onboardingCompleted: true } : current);
@@ -1433,7 +1425,7 @@ export default function App() {
 
       <div className="lg:pl-[272px]">
         <Header
-          activityRegion={userProfile.activityRegion}
+          activityRegion={displayedProfile.activityRegion}
           onRegionClick={() => navigateToTab('profile')}
           onNotificationClick={() => setShowNotifications(true)}
           onDMClick={() => setShowDMList(true)}
@@ -1815,7 +1807,9 @@ export default function App() {
 
           {activeTab === 'profile' && (
             <ProfileExperience
-              profile={userProfile}
+              profile={displayedProfile}
+              displayName={currentUserName}
+              nicknameReadOnly={Boolean(ownNickname.nickname)}
               profileImageUrl={undefined}
               onProfileChange={persistProfileForCurrentMember}
               meetups={myMeetups}

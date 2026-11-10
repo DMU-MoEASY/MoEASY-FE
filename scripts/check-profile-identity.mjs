@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const output=await build({entryPoints:['src/app/services/userProfile.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+const {memberProfile,defaultUserProfile,emptyUserProfile}=await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].text).toString('base64')}`);
+assert.equal(memberProfile({'11':defaultUserProfile},11),undefined,'Copied demo profile must not identify a real account');
+const real={nickname:'실제사용자',bio:'',activityRegion:'',interests:[]};
+assert.deepEqual(memberProfile({'11':real},11),real);
+assert.equal(memberProfile({'11':real},12),undefined,'Never reuse a different account profile');
+assert.equal(memberProfile({},11),undefined,'Never migrate a shared legacy profile');
+assert.deepEqual(emptyUserProfile,{nickname:'',bio:'',activityRegion:'',interests:[]});
+assert.equal(memberProfile({'11':{...real,interests:null}},11),undefined,'Invalid storage must not break profile render');
+assert.deepEqual(memberProfile({'11':{...real,nickname:'김모이지'}},11),{...real,nickname:'김모이지'},'A real user may choose the same nickname; reject only the exact demo bundle');
+console.log('PASS: demo rejection, account isolation, malformed storage, legitimate matching nickname');

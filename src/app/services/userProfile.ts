@@ -74,3 +74,17 @@ export const activityRegionGroups = [
 ] as const;
 
 export const activityRegionOptions: readonly string[] = activityRegionGroups.flatMap((group) => group.regions);
+
+export const emptyUserProfile: UserProfile = { nickname: '', bio: '', activityRegion: '', interests: [] };
+export function isSampleUserProfile(profile: UserProfile) {
+  return profile.nickname === defaultUserProfile.nickname && profile.bio === defaultUserProfile.bio
+    && profile.activityRegion === defaultUserProfile.activityRegion
+    && JSON.stringify(profile.interests) === JSON.stringify(defaultUserProfile.interests);
+}
+export function memberProfile(profiles: UserProfilesByMember, memberId: number): UserProfile | undefined {
+  const profile = profiles[String(memberId)];
+  if (!profile || typeof profile.nickname !== 'string' || typeof profile.bio !== 'string'
+    || typeof profile.activityRegion !== 'string' || !Array.isArray(profile.interests)
+    || !profile.interests.every(item => typeof item === 'string') || isSampleUserProfile(profile)) return undefined;
+  return profile;
+}

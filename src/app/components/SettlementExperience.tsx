@@ -9,7 +9,7 @@ import { persistenceStore } from '../lib/persistence';
 import { allocateSettlement } from '../services/localSettlement';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
 
-function LocalSettlementExperience({ meetupId, meetupName, onBack, initialCreate = false, onCreated }: { meetupId: string | number; meetupName: string; onBack: () => void; initialCreate?: boolean; onCreated?: (record: SettlementRecord) => void }) {
+function LocalSettlementExperience({ meetupId, meetupName, onBack, initialCreate = false, onCreated }: { meetupId: string | number; meetupName: string; onBack: () => void; initialCreate?: boolean; initialSettlementId?: number; onCreated?: (record: SettlementRecord) => void }) {
   const [finance, setFinance] = usePersistentState<DuesManagementState>(meetupFinanceKey(meetupId), INITIAL_DUES_STATE);
   const [view, setView] = useState<'list' | 'create' | 'detail'>(initialCreate ? 'create' : 'list');
   const [detail, setDetail] = useState<SettlementRecord | null>(null);

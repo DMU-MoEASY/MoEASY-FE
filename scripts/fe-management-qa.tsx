@@ -1,0 +1,42 @@
+import {useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {FinanceExperience} from '../src/app/components/SecondaryExperiences';
+import {RemoteBankPanel} from '../src/app/components/RemoteBankPanel';
+import {SettlementPaymentPanel} from '../src/app/components/SettlementPaymentPanel';
+import {ScheduleParticipation} from '../src/app/components/ScheduleParticipation';
+import {RemoteAvailabilityExperience} from '../src/app/components/RemoteAvailabilityExperience';
+import {koreaNow} from '../src/app/services/bankManagement';
+import type {SettlementDetail} from '../src/app/services/settlementApi';
+import type {BankAccount,Attendance,PaymentHistory} from '../src/app/services/pendingBackendApi';
+import '../src/styles/index.css';
+if(!import.meta.env.DEV)throw new Error('Development only');
+// Only this isolated mock page accepts its own disposable-data confirmations.
+window.confirm=()=>true;
+localStorage.setItem('moeasy:authSession',JSON.stringify({memberId:90001}));
+let role='OWNER';let bank:BankAccount|undefined;let rateLimited=false;let conflict=false;let last='읽기 대기';let payments:PaymentHistory[]=[];
+const members=[{groupMemberId:11,memberId:90001,nickname:'QA 운영진',role:'OWNER'},{groupMemberId:12,memberId:90002,nickname:'QA 회원',role:'MEMBER'}];
+let detail:SettlementDetail={groupId:7,settlementId:8,title:'QA 정산',scheduleId:null,status:'OPEN',splitMode:'EQUAL',totalAmount:10000,targetCount:1,dueAt:null,createdAt:'2099-01-01T00:00:00',description:null,createdBy:{groupMemberId:11,nickname:'QA 운영진'},paidAmount:0,remainingAmount:10000,paidCount:0,pendingCount:1,items:[{settlementItemId:21,groupMemberId:12,nickname:'QA 회원',amount:10000,paidAmount:0,remainingAmount:10000,version:0,status:'PENDING'}]};
+let attendance:Attendance={scheduleId:81,collectionStatus:'PENDING',version:0,canEdit:true,canComplete:true,canReopen:false,rosterFixed:true,recoverable:true,members:[{groupMemberId:11,status:'UNRECORDED',preRegistered:false,credited:false},{groupMemberId:12,status:'PRESENT',preRegistered:true,credited:true}]};
+let poll={pollId:1,startDate:'2099-01-10',dayCount:3,startHour:9,endHour:11,voteDeadlineAt:'2099-01-09T23:00:00',status:'OPEN',slotMinutes:30,token:'qa-token',confirmed:false,confirmedStartsAt:null,confirmedEndsAt:null};
+let pollExists=true;
+window.fetch=async(input,init={})=>{
+ const path=String(input).replace(/^https?:\/\/[^/]+/,'');const method=init.method??'GET';const body=init.body?JSON.parse(String(init.body)):{};
+ const reply=(result:unknown,status=200,code='OK')=>new Response(JSON.stringify({isSuccess:status<400,code,message:status<400?'QA 성공':'QA 상태 변경',result}),{status,headers:{'content-type':'application/json'}});
+ if(method!=='GET')last=`${method} ${path} · ${Object.keys(body).join(', ')}`; // Field names only: never echo secrets.
+ if(path.endsWith('/auth/csrf'))return reply({token:'qa-csrf'});
+ if(path.endsWith('/members'))return reply({members:members.map((m,i)=>i===0?{...m,role}:m)});
+ if(path.endsWith('/bank-account')){if(method==='POST'){bank={accountId:1,bankCode:body.bankCode,accountHolder:body.accountHolder,accountNumberMasked:'********0000',lastSyncedAt:null,nextSyncAt:null,lastSyncError:null};return reply(bank,201);}if(method==='DELETE'){bank=undefined;return reply(null);}return bank?reply(bank):reply(null,404,'BANK404_1');}
+ if(path.endsWith('/bank-account/sync')){if(bank){bank.nextSyncAt=new Date(Date.now()+5*60000).toLocaleString('sv-SE',{timeZone:'Asia/Seoul'}).replace(' ','T');if(rateLimited){bank.lastSyncError='BANK429_1';return reply(null,429,'BANK429_1');}bank.lastSyncedAt=koreaNow();}return reply({insertedCount:1,lastSyncedAt:koreaNow()});}
+ if(path.includes('/transactions'))return reply({items:[{transactionId:1,type:'DEPOSIT',transactedAt:koreaNow(),description:'QA 입금',displayName:'',counterparty:'QA 회원',amount:10000,balance:-100,branch:'',memo:''}],page:0,totalPages:1,hasNext:false});
+ if(path.includes('/payments')){if(method==='POST'){if(conflict){conflict=false;detail.items[0]!.version!++;return reply(null,409,'SETTLEMENT409_1');}if(path.endsWith('/cancel')){payments[0]={...payments[0]!,status:'CANCELLED',cancelReason:body.reason,cancelledAt:koreaNow(),cancelledBy:{groupMemberId:11,nickname:'QA 운영진'}};detail.items[0]!.paidAmount=0;}else{payments.unshift({paymentId:101,settlementItemId:21,paymentType:'PAYMENT',source:'MANUAL',status:'COMPLETED',amount:body.amount,occurredAt:body.occurredAt??null,createdAt:koreaNow(),cancelReason:null,recordedBy:null,cancelledAt:null,cancelledBy:null});detail.items[0]!.paidAmount=(detail.items[0]!.paidAmount??0)+body.amount;}detail.items[0]!.remainingAmount=10000-detail.items[0]!.paidAmount!;detail.items[0]!.status=detail.items[0]!.remainingAmount?'PENDING':'PAID';detail.items[0]!.version!++;return reply({});}return reply({items:payments,page:0,totalPages:1,hasNext:false});}
+ if(/\/settlements(?:\?|$)/.test(path))return reply({items:[detail],page:0,size:20,totalElements:1,totalPages:1,hasNext:false});
+ if(path.endsWith('/settlements/8'))return reply(detail);
+ if(path.endsWith('/rsvp'))return reply({scheduleId:81,startsAt:'2099-01-01T09:00:00',endsAt:'2099-01-01T10:00:00',canRespond:true,myStatus:'UNDECIDED',counts:{ATTENDING:1},members:[]});
+ if(path.includes('/attendance')){if(method!=='GET'){if(path.endsWith('/complete')){attendance.collectionStatus='COMPLETED';attendance.canEdit=false;attendance.canReopen=true;attendance.canComplete=false;}else if(path.endsWith('/reopen')){attendance.collectionStatus='PENDING';attendance.canEdit=true;attendance.canReopen=false;attendance.canComplete=true;}else attendance.members=attendance.members.map(m=>({...m,status:body.entries.find((e:{groupMemberId:number})=>e.groupMemberId===m.groupMemberId)?.status??'UNRECORDED'}));attendance.version++;}return reply(attendance);}
+ if(path.endsWith('/availability-poll')){if(method==='DELETE'){pollExists=false;return reply(null);}pollExists=true;poll={...poll,...body,status:'OPEN',confirmed:false};return reply(poll);}
+ if(path.endsWith('/availability')){if(!pollExists)return reply(null,404,'SCHEDULE404_2');return reply({poll,targetCount:2,respondedCount:1,pendingCount:1,slots:[{startsAt:'2099-01-10T09:00:00',availableCount:1,selected:false},{startsAt:'2099-01-10T09:30:00',availableCount:1,selected:false}],me:{responded:false,slots:[],editable:true},recommendations:[]});}
+ if(path.endsWith('/schedules/81'))return reply({scheduleId:81,groupId:7,title:'QA 일정',description:'',startsAt:'2099-01-10T09:00:00',endsAt:'2099-01-10T10:00:00',locationName:'QA',locationAddress:'QA',status:'SCHEDULED'});
+ return reply(null);
+};
+function QA(){const [view,setView]=useState('계좌');const [revision,setRevision]=useState(0);const [current,setCurrent]=useState(structuredClone(detail));const refresh=async()=>{setCurrent(structuredClone(detail));setRevision(v=>v+1);};return <div className="min-h-screen bg-background p-4"><nav className="mx-auto mb-6 flex max-w-5xl flex-wrap gap-2 text-sm">모의 API 검증{['연결흐름','계좌','납부','출석','시간표'].map(v=><button key={v} onClick={()=>setView(v)} className="rounded bg-secondary p-3">{v}</button>)}<button className="rounded bg-secondary p-3" onClick={()=>{role=role==='OWNER'?'MEMBER':'OWNER';setRevision(v=>v+1);}}>역할 전환: {role}</button><button className="rounded bg-secondary p-3" onClick={()=>{rateLimited=true;conflict=true;setRevision(v=>v+1);}}>다음 요청 충돌/제한</button></nav><main className="mx-auto max-w-5xl">{view==='연결흐름'&&<FinanceExperience meetupId={7} meetupName="QA 모임" onBack={()=>setView('계좌')} onReceipt={()=>{}}/>}{view==='계좌'&&<RemoteBankPanel key={`bank:${revision}`} meetupId={7}/>} {view==='납부'&&<SettlementPaymentPanel groupId={7} detail={current} canManage={role!=='MEMBER'} onRefresh={refresh}/>} {view==='출석'&&<ScheduleParticipation scheduleId={81} canManage={role!=='MEMBER'} members={members as never}/>} {view==='시간표'&&<RemoteAvailabilityExperience key={`poll:${revision}`} meetupId={7} meetupName="QA 모임" initialScheduleId={81} onBack={()=>setView('계좌')} onLocal={()=>{}}/>}<p className="mt-6 break-all text-xs" aria-label="최근 요청">{last}</p><button onClick={()=>setRevision(v=>v+1)} className="mt-3 rounded bg-secondary p-3 text-xs">요청 기록 확인</button></main></div>}
+createRoot(document.getElementById('root')!).render(<QA/>);

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
-const b=await build({stdin:{contents:"export * from './src/app/services/availabilityApi';export * from './src/app/services/bankManagement';export * from './src/app/services/attendanceRules';export * from './src/app/services/pendingBackendApi';",resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'runtime',setup(b){b.onLoad({filter:/config\/runtime\.ts$/},()=>({contents:"export const runtimeConfig={apiBaseUrl:'https://qa.test/api/v1'}",loader:'js'}));}}]});
+const b=await build({stdin:{contents:"export * from './src/app/services/settlementPaymentStatus';export * from './src/app/services/availabilityApi';export * from './src/app/services/bankManagement';export * from './src/app/services/attendanceRules';export * from './src/app/services/pendingBackendApi';",resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'runtime',setup(b){b.onLoad({filter:/config\/runtime\.ts$/},()=>({contents:"export const runtimeConfig={apiBaseUrl:'https://qa.test/api/v1'}",loader:'js'}));}}]});
 const api=await import(`data:text/javascript;base64,${Buffer.from(b.outputFiles[0].text).toString('base64')}`);
+assert.equal(api.settlementPaymentStatus({status:'PAID',paidAmount:10000}),'완납');
+assert.equal(api.settlementPaymentStatus({status:'PENDING',paidAmount:4000}),'부분 납부');
+assert.equal(api.settlementPaymentStatus({status:'PENDING',paidAmount:0}),'미납');
+assert.equal(api.settlementPaymentStatus({status:'PENDING'}),'미납/부분 납부');
 const connect={bankCode:'NH',accountNumber:'1234-5678-9000',accountHolder:' QA ',apiKey:'qa-key',secretKey:'qa-secret'};
 assert.equal(api.normalizeBankConnection(connect).accountNumber,'123456789000');
 assert.throws(()=>api.normalizeBankConnection({...connect,apiKey:'bad:key'}));

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const b=await build({entryPoints:['src/app/services/settlementEstimate.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+const {estimateSettlement}=await import(`data:text/javascript;base64,${Buffer.from(b.outputFiles[0].text).toString('base64')}`);
+const members=[{groupMemberId:13,nickname:'C'},{groupMemberId:11,nickname:'A'},{groupMemberId:12,nickname:'B'}];
+const result=estimateSettlement(10000,members,[13,12,11],false,{});
+assert.deepEqual(result.items.map(x=>x.amount),[3334,3333,3333]);
+assert.equal(result.items.reduce((sum,x)=>sum+x.amount,0),10000);
+assert.deepEqual(result.items.map(x=>x.groupMemberId),[11,12,13]);
+assert.ok(estimateSettlement(10000,members,[],false,{}).error);
+assert.ok(estimateSettlement(10000,members,[11,12],true,{11:'1000',12:'2000'}).error);
+assert.equal(estimateSettlement(10000,members,[11,12],true,{11:'4000',12:'6000'}).error,undefined);
+console.log('PASS: receipt amount allocation, remainder distribution, stable member order, selection and custom-sum errors');

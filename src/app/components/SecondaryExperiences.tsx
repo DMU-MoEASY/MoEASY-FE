@@ -1,3 +1,4 @@
+import { useConnectedDepositAccount } from '../hooks/useConnectedDepositAccount';
 import { RemoteBankPanel } from './RemoteBankPanel';
 import { RemoteJoinRequests } from './RemoteJoinRequests';
 import { useEffect, useState } from 'react';
@@ -171,6 +172,7 @@ function formatDuesDate(value?: string) {
 }
 
 export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: { meetupId: string | number; meetupName: string; onBack: () => void; onReceipt: () => void }) {
+  const connectedAccount=useConnectedDepositAccount(meetupId,isApiMode);
   const [showSettlements, setShowSettlements] = useState(false);
   const [showLocalRecords,setShowLocalRecords]=useState(false);
   const [tab, setTab] = useState<'납부 현황' | '거래 내역'>('납부 현황');
@@ -179,7 +181,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
   const [draft, setDraft] = useState(() => ({ title: dues.title, amount: String(dues.amount), dueDate: dues.dueDate, account: dues.account }));
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
-  const [reminderMessage, setReminderMessage] = useState(() => createReminderMessage(dues));
+  const [reminderMessage, setReminderMessage] = useState(() => createReminderMessage({...dues,account:isApiMode?connectedAccount:dues.account}));
   const [notice, setNotice] = useState('');
   const paidMembers = dues.members.filter(member => member.paid);
   const unpaidMembers = dues.members.filter(member => !member.paid);
@@ -202,13 +204,13 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
   const saveSettings = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const amount = Number(draft.amount);
-    if (!draft.title.trim() || !Number.isFinite(amount) || amount < 0 || !draft.dueDate || !draft.account.trim()) {
+    if (!draft.title.trim() || !Number.isFinite(amount) || amount < 0 || !draft.dueDate || (!isApiMode&&!draft.account.trim())) {
       setNotice('회비명, 금액, 납부기한, 입금 계좌를 모두 확인해주세요.');
       return;
     }
-    const nextDues = { ...dues, title: draft.title.trim(), amount, dueDate: draft.dueDate, account: draft.account.trim() };
+    const nextDues = { ...dues, title: draft.title.trim(), amount, dueDate: draft.dueDate, account: isApiMode?'':draft.account.trim() };
     setDues(nextDues);
-    setReminderMessage(createReminderMessage(nextDues));
+    setReminderMessage(createReminderMessage({...nextDues,account:isApiMode?connectedAccount:nextDues.account}));
     setIsEditing(false);
     setNotice('회비 설정을 저장했습니다.');
   };
@@ -237,7 +239,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
     if (selectedMemberIds.length === 0) {
       setSelectedMemberIds(unpaidMembers.map(member => member.id));
     }
-    setReminderMessage(createReminderMessage(dues));
+    setReminderMessage(createReminderMessage({...dues,account:isApiMode?connectedAccount:dues.account}));
     setIsReminderOpen(true);
     setNotice('');
   };
@@ -289,7 +291,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
 
     <section className="mt-6 rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">현재 회비</p><h2 className="mt-2 text-xl font-semibold">{dues.title}</h2><p className="mt-1 text-sm text-muted-foreground">회원 1인당 {dues.amount.toLocaleString('ko-KR')}원 · {dues.dueDate.replaceAll('-', '.')}까지</p></div><button type="button" onClick={startEditing} className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-xs font-semibold"><Pencil className="h-3.5 w-3.5"/>회비 설정</button></div>
-      <div className="mt-5 flex items-start gap-3 rounded-2xl bg-secondary/70 p-4"><Wallet className="mt-0.5 h-4 w-4 shrink-0 text-primary"/><div><p className="text-xs text-muted-foreground">입금 계좌</p><p className="mt-1 text-sm font-medium">{dues.account}</p></div></div>
+      <div className="mt-5 flex items-start gap-3 rounded-2xl bg-secondary/70 p-4"><Wallet className="mt-0.5 h-4 w-4 shrink-0 text-primary"/><div><p className="text-xs text-muted-foreground">입금 계좌</p><p className="mt-1 text-sm font-medium">{isApiMode?connectedAccount:(dues.account||'입금 계좌 미설정')}</p>{isApiMode&&<p className="mt-2 text-xs text-muted-foreground">연결된 서버 계좌입니다. 전체 번호는 제공되지 않아 송금용으로 복사할 수 없습니다.</p>}</div></div>
     </section>
 
     <div className="mt-8 flex gap-2">{(['납부 현황','거래 내역'] as const).map(item=><button key={item} onClick={()=>setTab(item)} className={`rounded-full px-4 py-2 text-sm ${tab===item?'bg-[#101828] text-white':'bg-card text-muted-foreground ring-1 ring-black/[0.06]'}`}>{item}</button>)}</div>
@@ -310,7 +312,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
       <section className="overflow-hidden rounded-[24px] bg-card ring-1 ring-black/[0.06]">{transactionRows.map(([title,meta,amount,color],index)=><div key={title} className={`flex items-center gap-4 p-5 ${index<transactionRows.length-1?'border-b border-border':''}`}><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary"><Wallet className="h-5 w-5 text-muted-foreground"/></span><div className="flex-1"><h3 className="font-medium">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{meta}</p></div><strong className={`text-sm ${color}`}>{amount}</strong></div>)}</section>
     </div>}
 
-    {isEditing && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="회비 설정"><form onSubmit={saveSettings} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:p-8"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Dues settings</p><h2 className="mt-2 text-2xl font-semibold">회비 설정</h2></div><button type="button" onClick={() => setIsEditing(false)} className="rounded-full bg-secondary p-2"><X className="h-4 w-4"/></button></div><div className="mt-7 space-y-5"><FormField label="회비명"><input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="form-input" placeholder="예: 9월 정기 회비"/></FormField><div className="grid gap-4 sm:grid-cols-2"><FormField label="1인당 회비"><div className="relative"><input type="number" min="0" step="1000" value={draft.amount} onChange={event => setDraft(current => ({ ...current, amount: event.target.value }))} className="form-input pr-10"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span></div></FormField><FormField label="납부 기한"><input type="date" value={draft.dueDate} onChange={event => setDraft(current => ({ ...current, dueDate: event.target.value }))} className="form-input"/></FormField></div><FormField label="입금 계좌"><input value={draft.account} onChange={event => setDraft(current => ({ ...current, account: event.target.value }))} className="form-input" placeholder="은행 계좌번호 예금주"/></FormField></div><div className="mt-8 flex gap-3"><button type="button" onClick={() => setIsEditing(false)} className="flex-1 rounded-xl bg-secondary py-3.5 text-sm font-semibold">취소</button><button type="submit" className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white">설정 저장</button></div></form></div>}
+    {isEditing && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="회비 설정"><form onSubmit={saveSettings} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:p-8"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Dues settings</p><h2 className="mt-2 text-2xl font-semibold">회비 설정</h2></div><button type="button" onClick={() => setIsEditing(false)} className="rounded-full bg-secondary p-2"><X className="h-4 w-4"/></button></div><div className="mt-7 space-y-5"><FormField label="회비명"><input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="form-input" placeholder="예: 9월 정기 회비"/></FormField><div className="grid gap-4 sm:grid-cols-2"><FormField label="1인당 회비"><div className="relative"><input type="number" min="0" step="1000" value={draft.amount} onChange={event => setDraft(current => ({ ...current, amount: event.target.value }))} className="form-input pr-10"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span></div></FormField><FormField label="납부 기한"><input type="date" value={draft.dueDate} onChange={event => setDraft(current => ({ ...current, dueDate: event.target.value }))} className="form-input"/></FormField></div><FormField label="입금 계좌"><input disabled={isApiMode} value={isApiMode?connectedAccount:draft.account} onChange={event => setDraft(current => ({ ...current, account: event.target.value }))} className="form-input" placeholder="은행 계좌번호 예금주"/></FormField></div><div className="mt-8 flex gap-3"><button type="button" onClick={() => setIsEditing(false)} className="flex-1 rounded-xl bg-secondary py-3.5 text-sm font-semibold">취소</button><button type="submit" className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white">설정 저장</button></div></form></div>}
 
     {isReminderOpen && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="독촉 문자 보내기"><section className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:p-8"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-600">Payment reminder</p><h2 className="mt-2 text-2xl font-semibold">독촉 문자 보내기</h2><p className="mt-2 text-sm text-muted-foreground">{selectedMemberIds.length || unpaidMembers.length}명에게 보낼 문구를 확인해주세요.</p></div><button type="button" onClick={() => setIsReminderOpen(false)} className="rounded-full bg-secondary p-2"><X className="h-4 w-4"/></button></div><div className="mt-6 flex flex-wrap gap-2">{dues.members.filter(member => selectedMemberIds.includes(member.id) || (selectedMemberIds.length === 0 && !member.paid)).map(member => <span key={member.id} className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700">{member.name}</span>)}</div><label className="mt-5 block"><span className="mb-2 block text-sm font-semibold">메시지</span><textarea value={reminderMessage} onChange={event => setReminderMessage(event.target.value)} rows={10} className="form-input resize-none text-sm leading-6"/></label><div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-5 text-amber-800 ring-1 ring-amber-100">현재 프런트엔드 데모에서는 실제 SMS를 전송하지 않고 발송 대상과 시각만 기록합니다. 실제 전송에는 문자 발송 서비스 연동이 필요합니다.</div><div className="mt-6 flex gap-3"><button type="button" onClick={() => setIsReminderOpen(false)} className="flex-1 rounded-xl bg-secondary py-3.5 text-sm font-semibold">취소</button><button type="button" onClick={recordReminder} disabled={!reminderMessage.trim()} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 py-3.5 text-sm font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4"/>발송 기록 저장</button></div></section></div>}
   </PageFrame>;

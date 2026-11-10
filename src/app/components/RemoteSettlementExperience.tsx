@@ -4,17 +4,16 @@ import { groupMembersApi } from '../services/groupMembersApi';
 import { persistenceStore } from '../lib/persistence';
 import { ScreenLoading, RequestError } from './ScreenStates';
 import { SettlementTransferPanel } from './SettlementTransferPanel';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { settlementApi, type SettlementPage, type SettlementDetail, type SettlementStatus } from '../services/settlementApi';
-const ReceiptOcrExperience = lazy(() => import('./ReceiptOcrExperience').then(module => ({ default: module.ReceiptOcrExperience })));
 const labels = {OPEN:'진행 중',CLOSED:'종료',CANCELLED:'취소'};
 const itemLabels = {PENDING:'미납',PAID:'납부 완료',REFUNDED:'환불',CANCELLED:'취소'};
-export function RemoteSettlementExperience({meetupId,meetupName,onBack}:{meetupId:string|number;meetupName:string;onBack:()=>void}) {
+export function RemoteSettlementExperience({meetupId,meetupName,onBack,initialCreate=false}:{meetupId:string|number;meetupName:string;onBack:()=>void;initialCreate?:boolean}) {
   const [paymentNotice,setPaymentNotice]=useState('');
-  const [creating,setCreating]=useState(false);
+  const [creating,setCreating]=useState(initialCreate);
   const [canManage,setCanManage]=useState(false);
   useEffect(()=>{const c=new AbortController();setCanManage(false);void groupMembersApi.list(meetupId,c.signal).then(v=>{const me=persistenceStore.read<{memberId:number}>('moeasy:authSession')?.memberId;setCanManage(v.members.some(m=>m.memberId===me&&m.role!=='MEMBER'));}).catch(()=>setCanManage(false));return()=>c.abort();},[meetupId]);
-  const [showOcr,setShowOcr]=useState(false);
+  const [startWithReceipt,setStartWithReceipt]=useState(false);
   const [page,setPage]=useState(0);
   const [status,setStatus]=useState<SettlementStatus>();
   const [data,setData]=useState<SettlementPage>();
@@ -29,12 +28,11 @@ export function RemoteSettlementExperience({meetupId,meetupName,onBack}:{meetupI
     void request.then(result=>{if(controller.signal.aborted)return;if('items' in result && 'settlementId' in result)setDetail(result as SettlementDetail);else setData(result as SettlementPage);}).catch(error=>{if(!controller.signal.aborted)setError(error);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return ()=>controller.abort();
   },[meetupId,page,status,id,retry]);
-  if (creating) return <main className="mx-auto max-w-4xl p-4 sm:p-8"><RemoteSettlementCreate groupId={meetupId} onBack={()=>setCreating(false)} onCreated={id=>{setCreating(false);setId(id);setRetry(v=>v+1);}}/></main>;
-  if (showOcr) return <Suspense fallback={<ScreenLoading label="영수증 인식을 준비하는 중입니다…" />}><ReceiptOcrExperience recognitionOnly onBack={() => setShowOcr(false)} /></Suspense>;
+  if (creating) return <main className="mx-auto max-w-4xl p-4 sm:p-8"><RemoteSettlementCreate groupId={meetupId} initialOcr={startWithReceipt} canCreate={canManage} onBack={()=>{setCreating(false);setStartWithReceipt(false);}} onCreated={id=>{setCreating(false);setStartWithReceipt(false);setId(id);setRetry(v=>v+1);}}/></main>;
   return <main className="min-h-screen bg-background p-4 sm:p-8"><div className="mx-auto max-w-4xl"><button onClick={()=>id===undefined?onBack():setId(undefined)} className="mb-6 min-h-11 text-sm">← {id===undefined?'모임으로':'정산 목록으로'}</button><p className="text-sm text-muted-foreground">{meetupName}</p><h1 className="mt-2 text-2xl font-semibold">{id===undefined?'정산 목록':detail?.title??'정산 상세'}</h1>
     <p className="my-5 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">서버 정산과 회원별 청구·납부 상태를 확인합니다. 정산 생성은 실제 모임 회원 목록을 사용합니다.</p>
-    {id===undefined&&canManage&&<button onClick={()=>setCreating(true)} className="mb-5 mr-3 min-h-11 rounded-xl bg-secondary px-5 py-3 text-sm">정산 만들기 · 운영진</button>}
-    <button type="button" onClick={() => setShowOcr(true)} className="mb-5 min-h-11 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white">영수증 인식 · 촬영 / 업로드</button>
+    {id===undefined&&canManage&&<button onClick={()=>{setStartWithReceipt(false);setCreating(true);}} className="mb-5 mr-3 min-h-11 rounded-xl bg-secondary px-5 py-3 text-sm">정산 만들기 · 운영진</button>}
+    <button type="button" onClick={() => {setStartWithReceipt(true);setCreating(true);}} className="mb-5 min-h-11 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white">영수증 인식 · 촬영 / 업로드</button>
     {(id === undefined || (detail?.status === 'OPEN' && detail.items.some(item => item.status === 'PENDING' && item.amount > 0))) && <SettlementTransferPanel key={`${meetupId}:${id ?? 'manual'}`} meetupId={meetupId} settlementId={id === undefined ? undefined : String(id)} targets={detail?.status === 'OPEN' ? detail.items.filter(item => item.status === 'PENDING' && item.amount > 0).map(item => ({ id: String(item.settlementItemId), name: item.nickname, amount: item.remainingAmount??item.amount })) : []} />}
     {id===undefined&&<div className="mb-5 flex flex-wrap gap-2">{([undefined,'OPEN','CLOSED','CANCELLED'] as const).map(value=><button key={value??'all'} aria-pressed={status===value} onClick={()=>{setStatus(value);setPage(0);}} className={`rounded-xl px-4 py-3 text-sm ${status===value?'bg-primary text-white':'bg-card'}`}>{value?labels[value]:'전체'}</button>)}</div>}
     {loading&&<ScreenLoading label="정산을 불러오는 중입니다…"/>}{!!error&&<RequestError error={error} onRetry={()=>setRetry(value=>value+1)} onBack={onBack}/>}

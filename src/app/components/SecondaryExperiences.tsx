@@ -5,7 +5,8 @@ import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clo
 import { TimeGrid } from './TimeGrid';
 import { OptimalTimeCard } from './OptimalTimeCard';
 import { ReceiptOcrExperience } from './ReceiptOcrExperience';
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
+import { ScreenLoading } from './ScreenStates';
 const SettlementExperience = lazy(()=>import('./SettlementExperience').then(module=>({default:module.SettlementExperience})));
 import { usePersistentState } from '../hooks/usePersistentState';
 import { UserAvatar } from './UserAvatar';
@@ -171,6 +172,7 @@ function formatDuesDate(value?: string) {
 
 export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: { meetupId: string | number; meetupName: string; onBack: () => void; onReceipt: () => void }) {
   const [showSettlements, setShowSettlements] = useState(false);
+  const [showLocalRecords,setShowLocalRecords]=useState(false);
   const [tab, setTab] = useState<'납부 현황' | '거래 내역'>('납부 현황');
   const [dues, setDues] = usePersistentState<DuesManagementState>(meetupFinanceKey(meetupId), INITIAL_DUES_STATE);
   const [isEditing, setIsEditing] = useState(false);
@@ -274,9 +276,9 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
     setNotice(completed ? '개별 송금 요청을 완료 처리했습니다.' : '개별 송금 요청을 대기 상태로 되돌렸습니다.');
   };
 
-  if (showSettlements) return <SettlementExperience meetupId={meetupId} meetupName={meetupName} onBack={() => { setDues(persistenceStore.read<DuesManagementState>(meetupFinanceKey(meetupId)) ?? INITIAL_DUES_STATE); setShowSettlements(false); }} />;
-  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={isApiMode ? `${meetupName}의 이 기기 내 회비 기록입니다. 실제 납부 확인이나 문자 발송은 연동되지 않았습니다.` : `${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
-    {isApiMode && <RemoteBankPanel meetupId={meetupId}/>}
+  if (showSettlements) return <Suspense fallback={<ScreenLoading label="정산 화면을 불러오는 중입니다…"/>}><SettlementExperience meetupId={meetupId} meetupName={meetupName} onBack={() => { setDues(persistenceStore.read<DuesManagementState>(meetupFinanceKey(meetupId)) ?? INITIAL_DUES_STATE); setShowSettlements(false); }} /></Suspense>;
+  if(isApiMode&&!showLocalRecords) return <PageFrame eyebrow="모임 회계" title="계좌 · 회비 관리" description={`${meetupName}의 연결 계좌와 저장된 거래를 확인하고, 정산 목록에서 회원별 납부를 관리하세요.`} onBack={onBack} action={<button onClick={()=>setShowSettlements(true)} className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-white">정산 목록</button>}><RemoteBankPanel meetupId={meetupId}/><section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">회원별 청구와 납부 기록</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">정산을 만들 때 회비 제목과 금액, 대상 회원을 지정할 수 있습니다. 은행 거래 확인 후 정산 상세에서 입금을 기록해주세요.</p><button onClick={()=>setShowSettlements(true)} className="mt-4 min-h-11 rounded-xl bg-secondary px-5 text-sm">정산 목록으로 이동</button></section><button onClick={()=>setShowLocalRecords(true)} className="mt-5 min-h-11 text-sm text-muted-foreground underline">이 기기의 기존 회비 기록 열기</button></PageFrame>;
+  return <PageFrame eyebrow="모임 회비" title="회비 관리" description={isApiMode ? `${meetupName}의 이 기기 내 회비 기록입니다. 실제 납부 확인이나 문자 발송은 연동되지 않았습니다.` : `${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={isApiMode?()=>setShowLocalRecords(false):onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-2xl border border-border bg-card p-6 sm:col-span-2"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">이번 회비 모금액</p><strong className="mt-2 block text-3xl tracking-tight">{collectedAmount.toLocaleString('ko-KR')}원</strong></div><span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">목표 {expectedAmount.toLocaleString('ko-KR')}원</span></div><div className="mt-7 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>{dues.title}</span><b className="text-foreground">{progress}% 달성</b></div></div>
       <div className="rounded-2xl border border-border bg-card p-6"><CreditCard className="h-5 w-5 text-slate-500"/><strong className="mt-8 block text-2xl">{paidMembers.length} / {dues.members.length}</strong><p className="mt-1 text-sm text-muted-foreground">납부 완료</p></div>

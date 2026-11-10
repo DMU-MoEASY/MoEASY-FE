@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { cacheServerScheduleWindow, scheduleApi, koreaLocalTime, type ServerSchedule, type ScheduleInput } from '../services/scheduleApi';
+import { invalidateServerScheduleCache, cacheServerScheduleWindow, scheduleApi, koreaLocalTime, type ServerSchedule, type ScheduleInput } from '../services/scheduleApi';
 import { RequestError, ScreenLoading } from './ScreenStates';
 import { ScheduleParticipation } from './ScheduleParticipation';
 
@@ -12,7 +12,7 @@ export function RemoteSchedulePanel({groupId,onCoordinate,readOnly=false}:{group
  const range=()=>({from:`${month}-01T00:00:00`,to:`${Number(month.slice(5))===12?Number(month.slice(0,4))+1:month.slice(0,4)}-${String(Number(month.slice(5))%12+1).padStart(2,'0')}-01T00:00:00`});
  useEffect(()=>{const controller=new AbortController();setLoading(true);setError(undefined);setItems([]);setCursor(null);setEditing(undefined);void scheduleApi.list(groupId,range(),controller.signal).then(v=>{if(!controller.signal.aborted){setItems(v.items);cacheServerScheduleWindow(groupId,month,v.items);setCursor(v.hasNext?v.nextCursor:null);}}).catch(e=>{if(!controller.signal.aborted)setError(e);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();},[groupId,month,revision]);
  const refresh=()=>setRevision(v=>v+1);
- const mutate=async(action:()=>Promise<unknown>)=>{setBusy(true);setNotice('');try{await action();refresh();}catch(e){setNotice(e instanceof Error?e.message:'요청에 실패했어요.');}finally{setBusy(false);}};
+ const mutate=async(action:()=>Promise<unknown>)=>{setBusy(true);setNotice('');try{await action();invalidateServerScheduleCache(groupId);refresh();}catch(e){setNotice(e instanceof Error?e.message:'요청에 실패했어요.');}finally{setBusy(false);}};
  const edit=async(id:number)=>{setBusy(true);try{const s=await scheduleApi.detail(id);const original={title:s.title,description:s.description,startsAt:s.startsAt,endsAt:s.endsAt,locationName:s.locationName,locationAddress:s.locationAddress};baseline.current=original;setDraft(original);setEditing(id);}catch(e){setNotice((e as Error).message);}finally{setBusy(false);}};
  return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">모임 일정</h2><p className="mt-2 text-sm text-muted-foreground">서버에 등록된 일정입니다. 시간은 한국 시간 기준입니다.</p></div><input aria-label="일정 조회 월" type="month" value={month} onChange={e=>{if(e.target.value)setMonth(e.target.value);}} className="form-input w-auto"/></div>
  <div className="flex flex-wrap gap-3"><button onClick={()=>onCoordinate()} className="min-h-12 rounded-xl bg-primary px-5 text-sm font-semibold text-white">가용시간 투표 · 시간표 열기</button>{!readOnly&&<button onClick={()=>{baseline.current=null;setDraft(initialDraft());setEditing('new');}} className="min-h-12 rounded-xl bg-secondary px-5 text-sm">일정 등록 · 운영진</button>}</div>

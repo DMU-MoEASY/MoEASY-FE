@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
-const bundled=await build({stdin:{contents:`export {scheduleApi,koreaLocalTime} from './src/app/services/scheduleApi';export {availabilityApi} from './src/app/services/availabilityApi';export {groupMembersApi} from './src/app/services/groupMembersApi';export {settlementPaymentApi,participationApi,bankAccountApi} from './src/app/services/pendingBackendApi';export {buildGridCandidates,normalizeGridPoll,localAvailabilityRecommendations} from './src/app/services/schedulePollRules';`,resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'runtime',setup(b){b.onLoad({filter:/config\/runtime\.ts$/},()=>({contents:"export const runtimeConfig={apiBaseUrl:'https://contract.test/api/v1'};",loader:'js'}));}}]});
+const bundled=await build({stdin:{contents:`export {scheduleApi,koreaLocalTime,cacheServerScheduleWindow,invalidateServerScheduleCache,serverScheduleMapKey} from './src/app/services/scheduleApi';export {availabilityApi} from './src/app/services/availabilityApi';export {groupMembersApi} from './src/app/services/groupMembersApi';export {settlementPaymentApi,participationApi,bankAccountApi} from './src/app/services/pendingBackendApi';export {buildGridCandidates,normalizeGridPoll,localAvailabilityRecommendations} from './src/app/services/schedulePollRules';`,resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'runtime',setup(b){b.onLoad({filter:/config\/runtime\.ts$/},()=>({contents:"export const runtimeConfig={apiBaseUrl:'https://contract.test/api/v1'};",loader:'js'}));}}]});
 const api=await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`);
 let result={};let status=200;const calls=[];
 globalThis.fetch=async(url,init={})=>{calls.push({url,init});return new Response(JSON.stringify({result:String(url).endsWith('/auth/csrf')?{token:'qa-csrf'}:result,code:status===404?'NOT_FOUND':'OK'}),{status,headers:{'content-type':'application/json'}});};
@@ -20,3 +20,12 @@ const participants=[{id:'a',name:'A'},{id:'b',name:'B'}];const poll={mode:'GRID'
 poll.responses.a.push('2099-01-10T09:30');assert.equal(api.localAvailabilityRecommendations(poll)[0].members.length,1);
 const legacy={...poll,mode:undefined,candidates:['2099-01-10T09:00','2099-01-10T10:00']};const migrated=api.normalizeGridPoll(legacy);assert.equal(migrated.mode,'GRID');assert.ok(migrated.candidates.includes('2099-01-10T09:30'));assert.deepEqual(migrated.responses,legacy.responses);
 console.log('PASS: schedule, availability, members, payments, RSVP contracts; full grids; legacy preservation; continuous participant intersection');
+
+const storage=new Map();globalThis.window={localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value)},dispatchEvent:()=>true};
+globalThis.CustomEvent??=class extends Event{constructor(type,options){super(type);this.detail=options?.detail;}};
+window.localStorage.setItem('moeasy:authSession',JSON.stringify({memberId:90001}));
+const schedule={scheduleId:81,groupId:7,title:'QA',startsAt:'2099-01-31T23:30:00',endsAt:'2099-02-01T00:30:00',locationName:'장소',status:'SCHEDULED'};
+api.cacheServerScheduleWindow(7,'2099-01',[schedule]);api.cacheServerScheduleWindow(7,'2099-02',[schedule]);assert.equal(JSON.parse(storage.get(api.serverScheduleMapKey())).length,1,'Overlapping month reads must not duplicate map markers');
+api.invalidateServerScheduleCache(7);assert.equal(JSON.parse(storage.get(api.serverScheduleMapKey())).length,0,'Changes must invalidate stale markers');
+window.localStorage.setItem('moeasy:authSession',JSON.stringify({memberId:90002}));assert.equal(storage.has(api.serverScheduleMapKey()),false,'Map cache must be account scoped');
+console.log('PASS: map cache deduplication, invalidation and account isolation');

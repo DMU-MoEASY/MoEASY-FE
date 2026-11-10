@@ -21,7 +21,9 @@ export type ServerMapEvent={id:string;title:string;place:string;dateValue:string
 export const serverScheduleMapKey=()=>`moeasy:server-schedule-map:${persistenceStore.read<{memberId:number}>('moeasy:authSession')?.memberId??'anonymous'}`;
 export function cacheServerScheduleWindow(groupId:number,month:string,items:ServerSchedule[]){
  const key=serverScheduleMapKey();const current=persistenceStore.read<ServerMapEvent[]>(key)??[];
- const kept=current.filter(e=>e.meetupId!==groupId||!e.dateValue.startsWith(month));
+ const fetched=new Set(items.map(item=>`server:${item.scheduleId}`));
+ const kept=current.filter(e=>!fetched.has(e.id)&&(e.meetupId!==groupId||!e.dateValue.startsWith(month)));
  const next=items.filter(s=>s.status==='SCHEDULED').map(s=>({id:`server:${s.scheduleId}`,title:s.title,place:s.locationName,dateValue:s.startsAt.slice(0,10),time:s.startsAt.slice(11,16),meetupId:groupId,group:`모임 #${groupId}`}));
- persistenceStore.write(key,[...kept,...next]);
+ persistenceStore.write(key,[...new Map([...kept,...next].map(event=>[event.id,event])).values()]);
 }
+export function invalidateServerScheduleCache(groupId:number){const key=serverScheduleMapKey();persistenceStore.write(key,(persistenceStore.read<ServerMapEvent[]>(key)??[]).filter(event=>event.meetupId!==groupId));}

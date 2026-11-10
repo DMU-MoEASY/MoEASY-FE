@@ -96,7 +96,7 @@ export const INITIAL_DUES_STATE: DuesManagementState = isApiMode ? {title:'모�
   title: '9월 정기 회비',
   amount: 15000,
   dueDate: '2026-09-30',
-  account: '카카오뱅크 3333-01-1234567 김모이지',
+  account: '',
   members: [
     { id: 'member-1', name: '김모이지', role: '모임장', paid: true, paidAt: '2026-09-03' },
     { id: 'member-2', name: '김철수', role: '운영진', paid: true, paidAt: '2026-09-04' },

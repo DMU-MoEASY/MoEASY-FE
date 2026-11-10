@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { bankAccountApi, type BankAccount, type BankTransaction } from '../services/pendingBackendApi';
 import { bankErrorMessage, koreaToday, normalizeBankConnection, supportedBanks, validateBankSync, type BankConnectInput, type BankSyncInput } from '../services/bankManagement';
+import { BANK_ACCOUNT_CHANGED } from '../hooks/useConnectedDepositAccount';
 import { useGroupMembership } from '../hooks/useGroupMembership';
 import { ApiError } from '../lib/apiClient';
 import { RequestError, ScreenLoading } from './ScreenStates';
@@ -58,7 +59,7 @@ function BankPanel({meetupId}:{meetupId:string|number}) {
       setNotice(bankErrorMessage(api?.code) ?? (e instanceof Error?e.message:'요청 결과를 확인할 수 없습니다.'));
       if(e instanceof DOMException&&e.name==='TimeoutError')setNotice('응답 대기 시간이 지났습니다. 자동 재시도하지 않습니다. 계좌와 거래내역을 새로 확인해주세요.');
     } finally {
-      if(mounted.current){setConnect(emptyConnect());setSync(emptySync());setBusy(false);refresh();}
+      if(mounted.current){setConnect(emptyConnect());setSync(emptySync());setBusy(false);refresh();window.dispatchEvent(new CustomEvent(BANK_ACCOUNT_CHANGED,{detail:meetupId}));}
       if(isSync)mutation.current=undefined;
       inFlight.current=false;
     }

@@ -64,6 +64,8 @@ import {
 } from './services/userProfile';
 import { Calendar, MapPin, Clock, ArrowLeft, Users, MessageSquare, DollarSign, Receipt, Settings, UserCog, Wallet, CreditCard, UserPlus, PenSquare, Star, LoaderCircle } from 'lucide-react';
 
+const RemoteMembersExperience = lazy(() => import('./components/RemoteMembersExperience').then(module=>({default:module.RemoteMembersExperience})));
+const RemoteCalendarExperience = lazy(() => import('./components/RemoteSchedulePanel').then(module=>({default:module.RemoteCalendarExperience})));
 const SchedulePollExperience = lazy(() => import('./components/SchedulePollExperience').then(module=>({default:module.SchedulePollExperience})));
 const MapPage = lazy(() => import('./components/MapPage').then(module=>({default:module.MapPage})));
 const ExploreExperience = lazy(() => import('./components/ExploreExperience').then(module=>({default:module.ExploreExperience})));
@@ -845,10 +847,8 @@ export default function App() {
   }
 
   if (showMemberManagement) {
-    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}><MembersExperience onBack={() => {
-      setShowMemberManagement(false);
-      setShowMeetupDetail(true);
-    }} /></ScreenEntrance>;
+    const onBack=()=>{setShowMemberManagement(false);setShowMeetupDetail(true);};
+    return <ScreenEntrance direction={screenDirection} screenKey={`${selectedMeetup.id}:${childScreen || 'meetup'}`}>{isApiMode?<RemoteMembersExperience meetupId={selectedMeetup.id} onBack={onBack}/>:<MembersExperience onBack={onBack}/>}</ScreenEntrance>;
   }
 
   if (false && showMemberManagement) {
@@ -1656,7 +1656,7 @@ export default function App() {
 
           {activeTab === 'map' && <MapPage key={authSession?.memberId ?? "local"} userId={authSession?.memberId} onOpenSchedule={() => navigateToTab("schedule")} />}
 
-          {activeTab === 'schedule' && <ScheduleExperience onOpenPoll={event => { const target = myMeetups.find(item => String(item.id) === String(event.meetupId)); if (!target) return; openMeetup(target); setPollScheduleId(String(event.id).startsWith(`club:${target.id}:`) ? String(event.id).slice(`club:${target.id}:`.length) : event.id); setShowScheduler(true); setShowMeetupDetail(false); }} onOpenMap={() => { navigateToTab('map'); window.history.replaceState({}, '', '/map?mode=schedule'); }} />}
+          {activeTab === 'schedule' && (isApiMode ? <RemoteCalendarExperience groups={myMeetups} onOpen={(groupId,id)=>{const meetup=myMeetups.find(item=>item.id===groupId);if(meetup){openMeetup(meetup);setPollScheduleId(id);setShowScheduler(true);setShowMeetupDetail(false);}}}/> : <ScheduleExperience onOpenPoll={event => { const target = myMeetups.find(item => String(item.id) === String(event.meetupId)); if (!target) return; openMeetup(target); setPollScheduleId(String(event.id).startsWith(`club:${target.id}:`) ? String(event.id).slice(`club:${target.id}:`.length) : event.id); setShowScheduler(true); setShowMeetupDetail(false); }} onOpenMap={() => { navigateToTab('map'); window.history.replaceState({}, '', '/map?mode=schedule'); }} />)}
 
           {activeTab === '__legacy_schedule' && (
             <section className="space-y-4">

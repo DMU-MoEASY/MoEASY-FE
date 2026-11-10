@@ -1,3 +1,4 @@
+import { RemoteBankPanel } from './RemoteBankPanel';
 import { RemoteJoinRequests } from './RemoteJoinRequests';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Bell, BellRing, CalendarDays, Camera, Check, CheckCheck, Clock3, CreditCard, MapPin, MessageCircle, MoreHorizontal, Pencil, Plus, Receipt, Search, Send, Sparkles, UserCheck, Users, Wallet, X } from 'lucide-react';
@@ -275,6 +276,7 @@ export function FinanceExperience({ meetupId, meetupName, onBack, onReceipt }: {
 
   if (showSettlements) return <SettlementExperience meetupId={meetupId} meetupName={meetupName} onBack={() => { setDues(persistenceStore.read<DuesManagementState>(meetupFinanceKey(meetupId)) ?? INITIAL_DUES_STATE); setShowSettlements(false); }} />;
   return <PageFrame eyebrow="모임 회비" title="회비 관리" description={isApiMode ? `${meetupName}의 이 기기 내 회비 기록입니다. 실제 납부 확인이나 문자 발송은 연동되지 않았습니다.` : `${meetupName}의 회비를 설정하고 회원별 납부 여부와 미납 안내 이력을 한곳에서 관리하세요.`} onBack={onBack} action={<button onClick={() => setShowSettlements(true)} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white"><Receipt className="h-4 w-4"/>정산 목록</button>}>
+    {isApiMode && <RemoteBankPanel meetupId={meetupId}/>}
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-2xl border border-border bg-card p-6 sm:col-span-2"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">이번 회비 모금액</p><strong className="mt-2 block text-3xl tracking-tight">{collectedAmount.toLocaleString('ko-KR')}원</strong></div><span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">목표 {expectedAmount.toLocaleString('ko-KR')}원</span></div><div className="mt-7 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>{dues.title}</span><b className="text-foreground">{progress}% 달성</b></div></div>
       <div className="rounded-2xl border border-border bg-card p-6"><CreditCard className="h-5 w-5 text-slate-500"/><strong className="mt-8 block text-2xl">{paidMembers.length} / {dues.members.length}</strong><p className="mt-1 text-sm text-muted-foreground">납부 완료</p></div>

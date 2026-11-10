@@ -1,3 +1,4 @@
+import { serverScheduleMapKey, type ServerMapEvent } from '../services/scheduleApi';
 import { isApiMode } from '../config/runtime';
 import { markerSymbols, markerSymbol, markerSymbolPreview } from '../lib/markerSymbols';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -31,7 +32,9 @@ const nearbyMeetups: MapItem[] = isApiMode ? [] : [
 const defaultCenter = { lat: 37.5159, lng: 127.0204 };
 
 export function MapPage({ userId = 'local', onOpenSchedule }: { userId?: string | number; onOpenSchedule?: () => void }) {
-  const [events] = usePersistentState(globalScheduleKey, INITIAL_GLOBAL_SCHEDULES);
+  const [localEvents] = usePersistentState(globalScheduleKey, INITIAL_GLOBAL_SCHEDULES);
+  const [serverEvents] = usePersistentState<ServerMapEvent[]>(serverScheduleMapKey(), []);
+  const events = isApiMode ? serverEvents : localEvents;
   const [preferences, setPreferences] = usePersistentState<Record<string, { color: string; icon: string }>>(`moeasy:map-markers:${userId}`, {});
   const [resolved, setResolved] = useState<MapItem[]>([]);
   const [unresolved, setUnresolved] = useState(0);
